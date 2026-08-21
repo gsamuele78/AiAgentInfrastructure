@@ -1,0 +1,32 @@
+name: Proposta
+description: Nuova funzionalità o cambio architetturale
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: Quale problema reale risolve? (non "sarebbe bello se")
+    validations: { required: true }
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternative considerate
+      description: Almeno una alternativa e perché è stata scartata
+    validations: { required: true }
+  - type: textarea
+    id: cost
+    attributes:
+      label: Costo di manutenzione
+      description: |
+        Vincolo del progetto: single maintainer, <30 min/mese.
+        Quanto costa mantenere questa cosa? Si sovrappone a qualcosa di esistente?
+    validations: { required: true }
+  - type: checkboxes
+    id: adr
+    attributes:
+      label: Impatto
+      options:
+        - label: Richiede un ADR (cambio architetturale)
+        - label: Aggiunge una dipendenza esterna
+        - label: Introduce un nuovo sistema di memoria (vedi ADR-0007)

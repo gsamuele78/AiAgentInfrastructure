@@ -1,0 +1,54 @@
+services:
+  litellm:
+    build:
+      context: .
+      args:
+        LITELLM_IMAGE_TAG: "${LITELLM_IMAGE_TAG:-main-stable}"
+    image: litellm-headroom:local
+    container_name: litellm
+    restart: unless-stopped
+    ports: ["0.0.0.0:4000:4000"]
+    env_file: .env
+    environment:
+      DATABASE_URL: "postgresql://litellm:${POSTGRES_PASSWORD}@db:5432/litellm"
+      STORE_MODEL_IN_DB: "true"
+    volumes: ["./litellm_config.yaml:/app/config.yaml:ro"]
+    command: ["--config", "/app/config.yaml", "--port", "4000"]
+    depends_on:
+      db: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "litellm", "--health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 2G }
+    logging:
+      driver: local
+      options: { max-size: "15m", max-file: "5" }
+  db:
+    image: postgres:16-alpine
+    container_name: litellm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: litellm
+      POSTGRES_USER: litellm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U litellm -d litellm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    security_opt: ["no-new-privileges:true"]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 1G }
+    logging:
+      driver: local
+      options: { max-size: "15m", max-file: "5" }
+volumes:
+  pgdata: {}

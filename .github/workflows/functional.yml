@@ -1,0 +1,46 @@
+name: functional
+# Test FUNZIONALI sulla catena reale. Richiede un runner SELF-HOSTED sull'host
+# che ospita la VM (vedi docs/GITHUB-SETUP.md §4). Non gira sui runner GitHub:
+# la catena reale (VM, gateway, provider) non è raggiungibile da lì.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1"       # lunedì 06:00: rileva le derive del weekend
+permissions: { contents: read }
+
+jobs:
+  functional:
+    name: Catena reale (self-hosted)
+    # Etichette da assegnare al runner in fase di registrazione.
+    runs-on: [self-hosted, linux, llm-gateway]
+    # Non fallire l'intero repo se il runner è offline (laptop spento).
+    continue-on-error: true
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rilevamento hardware
+        run: ./scripts/detect-hardware.sh
+
+      - name: Audit infrastruttura
+        run: ./scripts/devops-audit.sh
+
+      - name: Audit integrazione
+        run: ./scripts/audit-integration.py
+        env:
+          LITELLM_MASTER_KEY: ${{ secrets.LITELLM_MASTER_KEY }}
+
+      - name: Test end-to-end (gateway, compressione, agenti)
+        run: ./scripts/test-all.sh
+        env:
+          LITELLM_MASTER_KEY: ${{ secrets.LITELLM_MASTER_KEY }}
+
+      - name: Test di restore del backup (TC-05)
+        # Il debito #1: un backup non testato non è un backup.
+        run: ./scripts/restore-test.sh
+        env:
+          VM_SSH: ${{ secrets.VM_SSH_TARGET }}
+
+      - name: Riepilogo
+        if: always()
+        run: echo "Esiti completi nei log dei singoli step."

@@ -1,0 +1,8 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:4000",
+    "ANTHROPIC_MODEL": "anthropic-claude",
+    "ANTHROPIC_CUSTOM_HEADERS": "x-litellm-api-key: Bearer sk-CHANGEME-virtual-key"
+  },
+  "permissions": { "allow": ["Bash(git rm *)", "Bash(git add *)", "Bash(git grep *)"] }
+}

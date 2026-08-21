@@ -1,0 +1,33 @@
+name: Bug
+description: Qualcosa non funziona come documentato
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: Cosa succede
+      description: Comportamento osservato vs atteso
+    validations: { required: true }
+  - type: textarea
+    id: audit
+    attributes:
+      label: Output degli audit
+      description: Incolla l'esito di audit-integration.py e/o test-all.sh
+      render: shell
+  - type: dropdown
+    id: layer
+    attributes:
+      label: Layer
+      options:
+        - gateway (LiteLLM/headroom)
+        - VM / rete (KVM, forward, IP)
+        - agenti (opencode/OpenChamber/Claude Code)
+        - MCP / skill (Serena, mattpocock, graphify)
+        - LLM locale (Ollama) o BIOME (vLLM)
+        - CI / repo
+    validations: { required: true }
+  - type: input
+    id: env
+    attributes:
+      label: Ambiente
+      placeholder: "host Ubuntu 24.04, VM Debian 13, litellm main-stable"

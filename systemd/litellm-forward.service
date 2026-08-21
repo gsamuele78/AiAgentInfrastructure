@@ -1,0 +1,13 @@
+# ~/.config/systemd/user/litellm-forward.service
+[Unit]
+Description=Forward host 127.0.0.1:4000 -> LiteLLM in VM KVM
+After=network-online.target libvirtd.service
+Wants=network-online.target
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/litellm/forward.env
+ExecStart=/usr/bin/socat TCP-LISTEN:4000,bind=127.0.0.1,fork,reuseaddr TCP:${VM_IP}:4000
+Restart=on-failure
+RestartSec=3
+[Install]
+WantedBy=default.target

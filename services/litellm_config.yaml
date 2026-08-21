@@ -1,0 +1,40 @@
+model_list:
+  - model_name: claude-opus-4-8
+    litellm_params: { model: claude-opus-4-8, api_key: os.environ/ANTHROPIC_API_KEY }
+    cache_control_injection_points: [ { location: message, role: system } ]
+  - model_name: claude-sonnet-4-6
+    litellm_params: { model: claude-sonnet-4-6, api_key: os.environ/ANTHROPIC_API_KEY }
+  - model_name: claude-haiku-4-5-20251001
+    litellm_params: { model: claude-haiku-4-5-20251001, api_key: os.environ/ANTHROPIC_API_KEY }
+  - model_name: anthropic-claude          # lane abbonamento (auth dal client)
+    litellm_params: { model: anthropic/claude-sonnet-4-6 }
+  - model_name: "openrouter/*"
+    litellm_params: { model: "openrouter/*", api_key: os.environ/OPENROUTER_API_KEY }
+  - model_name: or-pareto-code
+    litellm_params: { model: openrouter/openrouter/pareto-code, api_key: os.environ/OPENROUTER_API_KEY }
+  - model_name: or-private                # lane privacy dati BIOME
+    litellm_params:
+      model: openrouter/openrouter/auto:exacto
+      api_key: os.environ/OPENROUTER_API_KEY
+      extra_body: { provider: { data_collection: deny, require_parameters: true } }
+litellm_settings:
+  callbacks: ["headroom.integrations.litellm_callback.HeadroomCallback"]
+  forward_client_headers_to_llm_api: true
+  num_retries: 2
+  request_timeout: 600
+  drop_params: true
+  set_verbose: false
+  fallbacks:
+    - coding: ["or-pareto-code", "claude-opus-4-8"]
+    - smart:  ["or-private", "claude-sonnet-4-6"]
+    - cheap:  ["openrouter/openrouter/free", "claude-haiku-4-5-20251001"]
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
+  store_model_in_db: true
+  allow_requests_on_db_unavailable: false
+router_settings:
+  routing_strategy: simple-shuffle
+  allowed_fails: 3
+  cooldown_time: 60
+  enable_pre_call_checks: true

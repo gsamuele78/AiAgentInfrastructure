@@ -1,0 +1,94 @@
+name: validate
+# CI di sola VALIDAZIONE statica (vedi docs/adr/0010). Nessun deploy.
+on:
+  push: { branches: [main] }
+  pull_request:
+  workflow_dispatch:
+permissions: { contents: read }
+
+jobs:
+  syntax:
+    name: Sintassi e lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: |
+          python -m pip install --quiet pyyaml
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - name: YAML / JSON / JSONC / TOML
+        run: |
+          python - <<'PY'
+          import yaml, json, re, pathlib, sys, tomllib
+          bad = 0
+          def check(p, fn):
+              global bad
+              try: fn(p); print(f"  ok   {p}")
+              except Exception as e: print(f"  FAIL {p}: {e}"); bad += 1
+          for f in pathlib.Path(".").rglob("*.y*ml"):
+              if ".git" in f.parts: continue
+              check(f, lambda p: list(yaml.safe_load_all(p.read_text())))
+          for f in list(pathlib.Path(".").rglob("*.json")) + list(pathlib.Path(".").rglob("*.jsonc")):
+              if ".git" in f.parts: continue
+              def j(p):
+                  t = re.sub(r'^\s*//.*$', '', p.read_text(), flags=re.M)
+                  json.loads(re.sub(r',(\s*[}\]])', r'\1', t))
+              check(f, j)
+          for f in pathlib.Path(".").rglob("*.toml"):
+              if ".git" in f.parts: continue
+              check(f, lambda p: tomllib.load(p.open("rb")))
+          sys.exit(bad)
+          PY
+      - name: Python
+        run: python -m compileall -q scripts/
+      - name: Shell
+        run: |
+          fail=0
+          for s in $(find . -name '*.sh' -not -path './.git/*'); do
+            bash -n "$s" || fail=1
+            shellcheck -e SC1091,SC2086,SC2181,SC2015 "$s" || fail=1
+          done
+          exit $fail
+
+  build:
+    name: Build immagine (gate callback)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: compose config
+        working-directory: services
+        run: cp .env.example .env && docker compose config >/dev/null && echo OK
+      - name: docker build
+        working-directory: services
+        # Il Dockerfile contiene il gate `import HeadroomCallback`: se il
+        # callback non è importabile la build fallisce qui, non in produzione.
+        run: docker build -t litellm-headroom:ci .
+
+  secrets:
+    name: Nessun segreto committato
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          if grep -rInE '(sk-ant-[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{40,})' \
+               --exclude-dir=.git . | grep -viE 'CHANGEME|example|placeholder|<'; then
+            echo "::error::Possibile segreto reale committato"; exit 1
+          fi
+          grep -q '\.env' .gitignore || { echo "::error::.env non in .gitignore"; exit 1; }
+          echo "nessun segreto rilevato"
+
+  docs:
+    name: Coerenza ADR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          fail=0
+          for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
+            [ -f "docs/adr/$f" ] || { echo "::error::ADR mancante: $f"; fail=1; }
+          done
+          for f in docs/adr/[0-9]*.md; do
+            grep -q '^- \*\*Status\*\*' "$f" || { echo "::error::$f senza Status"; fail=1; }
+          done
+          exit $fail

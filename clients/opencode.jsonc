@@ -1,0 +1,22 @@
+{
+  // ~/.config/opencode/opencode.jsonc — un solo provider verso il gateway.
+  "$schema": "./opencode.schema.json",
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "baseURL": "http://127.0.0.1:4000/v1", "apiKey": "{env:LITELLM_MASTER_KEY}" },
+      "models": { "coding": {}, "smart": {}, "cheap": {}, "claude-opus-4-8": {}, "or-private": {} }
+    }
+  },
+  "model": "litellm/coding",
+  "mcp": {
+    "serena": { "type": "local", "command": ["serena","start-mcp-server","--context","ide-assistant","--project-from-cwd"], "enabled": true },
+    "mem":    { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-memory"] },
+    "reason": { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-sequential-thinking"] },
+    "fs":     { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-filesystem","/home/jfs/00_Antigravity_workspace"] },
+    "ctx7":   { "type": "local", "command": ["npx","-y","@upstash/context7-mcp"], "environment": { "CONTEXT7_API_KEY": "example-key" } },
+    "crawl":  { "type": "local", "command": ["npx","-y","firecrawl-mcp"], "environment": { "FIRECRAWL_API_KEY": "example-key" }, "enabled": true, "timeout": 60000 },
+    "fetch":  { "type": "local", "command": ["node","/home/jfs/Documents/Cline/MCP/github.com/zcaceres/fetch-mcp/dist/index.js"], "environment": {}, "enabled": true, "timeout": 60000 },
+    "tavily": { "type": "local", "command": ["npx","-y","tavily-mcp@0.2.3"], "environment": { "TAVILY_API_KEY": "example-key" }, "enabled": false }
+  }
+}

@@ -1,0 +1,15 @@
+# PRIMA: headroom unwrap codex
+model_provider = "litellm"
+[model_providers.litellm]
+name = "LiteLLM gateway"
+base_url = "http://127.0.0.1:4000/v1"
+requires_openai_auth = true
+env_key = "OPENAI_API_KEY"
+[mcp_servers.serena]
+command = "uvx"
+args = ["--from","git+https://github.com/oraios/serena","serena","start-mcp-server","--context","codex","--project-from-cwd"]
+[mcp_servers.headroom]
+command = "headroom"
+args = ["mcp","serve"]
+[projects."/home/jfs"]
+trust_level = "trusted"

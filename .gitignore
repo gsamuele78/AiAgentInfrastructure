@@ -1,0 +1,38 @@
+# --- Segreti: MAI committare ---
+.env
+*.env
+!.env.example
+!*.env.example
+*.key
+*.pem
+*.crt
+!step-root.crt
+master.key
+forward.env
+!forward.env.example
+secrets/
+
+# --- Backup e artefatti locali ---
+*.bak-*
+*.old-*
+audit-*.txt
+last-sync.json
+backups/
+*.sql.gz
+
+# --- Runtime / generati ---
+config.generated.yaml
+.serena/
+graph.json
+.graphify_learning.json
+__pycache__/
+*.pyc
+.venv/
+node_modules/
+
+# --- OS / editor ---
+.DS_Store
+*.swp
+.idea/
+.vscode/
+!.vscode/extensions.json
