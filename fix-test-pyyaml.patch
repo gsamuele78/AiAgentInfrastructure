@@ -1,0 +1,109 @@
+From 726abe0268271253f9ccd3307856bdf4ff8547a3 Mon Sep 17 00:00:00 2001
+From: Gianfranco Sammartano <gsamuele78@users.noreply.github.com>
+Date: Fri, 21 Aug 2026 09:48:33 +0000
+Subject: [PATCH] fix(test): test-scripts non fallisce piu' se pyyaml e'
+ assente
+
+Su una macchina senza pyyaml (es. una seconda workstation) i controlli sui
+compose fallivano con ModuleNotFoundError. Il caso peggiore era 'postgres
+esposto': un controllo di SICUREZZA che riportava una violazione inesistente
+solo perche' non riusciva a leggere il file.
+
+Un test che fallisce per motivi ambientali erode la fiducia nella suite piu'
+di un test assente.
+
+- pyyaml assente -> fallback su 'docker compose config', poi su verifica
+  testuale; i controlli non eseguibili sono 'skip', mai 'fail'.
+- L'invariante 'postgres non esposto' ha ora un fallback grep: resta
+  verificata anche senza dipendenze Python.
+- Documentata la dipendenza opzionale in AGENTS.md e TEST-PLAN.md.
+
+Verificato simulando l'assenza di pyyaml: 57 PASS 0 FAIL (era 56/3).
+---
+ AGENTS.md               |  1 +
+ docs/TEST-PLAN.md       |  5 +++++
+ scripts/test-scripts.sh | 35 +++++++++++++++++++++++++++++------
+ 3 files changed, 35 insertions(+), 6 deletions(-)
+
+diff --git a/AGENTS.md b/AGENTS.md
+index 2be9320..702bf34 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -64,6 +64,7 @@ attenzione continua.
+ ```bash
+ # verifica (in ordine di costo crescente)
+ ./scripts/test-scripts.sh        # L1b: contratti e invarianti — gira ovunque
++#   (pyyaml opzionale: senza, i controlli sui compose sono 'skip' non 'fail')
+ ./scripts/devops-audit.sh        # L4: best practice deploy
+ ./scripts/audit-integration.py   # L3: configurazione dei client
+ ./scripts/test-all.sh            # L5: catena reale (serve il gateway attivo)
+diff --git a/docs/TEST-PLAN.md b/docs/TEST-PLAN.md
+index e9b3f93..9bd21a1 100644
+--- a/docs/TEST-PLAN.md
++++ b/docs/TEST-PLAN.md
+@@ -33,6 +33,11 @@ porte, vLLM stia su loopback, le config siano `:ro`, `cleanup-host` faccia il
+ pre-check sul gateway (ordine PSE), `create-vm --destroy` chieda conferma, e
+ nessun segreto sia hardcoded. Gira su runner GitHub: nessuna dipendenza dall'host.
+ 
++> **Dipendenze opzionali:** `test-scripts.sh` usa `pyyaml` se presente, altrimenti
++> ripiega su `docker compose config` o su verifiche testuali. Un controllo non
++> eseguibile risulta **skip**, mai fail: un test che fallisce per motivi
++> ambientali erode la fiducia nella suite più di un test assente.
++
+ **TC-08 Dry-run non distruttivi** — ogni script che modifica il sistema espone
+ `--dry-run` e deve completarlo **anche su una macchina vuota**. Se un dry-run
+ crasha, crasherebbe anche l'esecuzione reale.
+diff --git a/scripts/test-scripts.sh b/scripts/test-scripts.sh
+index dc165ba..e61b6c3 100755
+--- a/scripts/test-scripts.sh
++++ b/scripts/test-scripts.sh
+@@ -47,17 +47,40 @@ grep -A3 'DESTROY.*=.*1' scripts/create-vm.sh | grep -q 'read -rp' \
+   && ok "create-vm --destroy richiede conferma" || ko "--destroy senza conferma"
+ 
+ sec "4. Compose: validi e senza esposizioni indebite"
++# pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
++# Un controllo che fallisce per motivi ambientali e' peggio di un controllo assente.
++if python3 -c 'import yaml' 2>/dev/null; then
++  HAVE_YAML=1
++else
++  HAVE_YAML=0
++  echo -e "  \033[2m–\033[0m controlli YAML saltati (pyyaml assente: pip install pyyaml)"
++fi
++
+ for d in services services-biome; do
+-  python3 - "$d/docker-compose.yml" <<'PY' && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
+-import yaml,sys; yaml.safe_load(open(sys.argv[1]))
+-PY
++  if [ "$HAVE_YAML" = 1 ]; then
++    python3 -c "import yaml,sys; yaml.safe_load(open('$d/docker-compose.yml'))" \
++      && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
++  elif command -v docker >/dev/null 2>&1; then
++    ( cd "$d" && cp -n .env.example .env 2>/dev/null; BIND_IP=127.0.0.1 docker compose config >/dev/null 2>&1 ) \
++      && ok "$d/docker-compose.yml valido (via docker compose)" \
++      || echo -e "  \033[2m–\033[0m $d/docker-compose.yml non verificabile qui"
++  else
++    echo -e "  \033[2m–\033[0m $d/docker-compose.yml non verificabile (ne' pyyaml ne' docker)"
++  fi
+ done
+-# postgres non deve pubblicare porte
+-python3 - <<'PY' && ok "postgres non esposto su porta host" || ko "postgres esposto"
++
++# postgres non deve pubblicare porte. Fallback su grep: non richiede pyyaml
++# ed e' l'ancora di sicurezza se il parser non e' disponibile.
++if [ "$HAVE_YAML" = 1 ]; then
++  python3 - <<'PYX' && ok "postgres non esposto su porta host" || ko "postgres esposto"
+ import yaml,sys
+ c=yaml.safe_load(open("services/docker-compose.yml"))
+ sys.exit(1 if c["services"]["db"].get("ports") else 0)
+-PY
++PYX
++else
++  grep -qE '^\s*-\s*"?[0-9.]*:?5432:5432' services/docker-compose.yml \
++    && ko "postgres esposto su porta host" || ok "postgres non esposto (verifica testuale)"
++fi
+ # vLLM deve stare su loopback
+ grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
+   && ok "vLLM su loopback (solo nginx lo espone)" || ko "vLLM non su loopback"
+-- 
+2.43.0
+
