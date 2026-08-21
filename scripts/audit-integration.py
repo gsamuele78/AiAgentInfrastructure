@@ -71,9 +71,9 @@ if oc:
         off=sp.exists() and "write_memory" in sp.read_text(errors="ignore")
         L("PASS" if off else "WARN","Serena memory disabilitata" if off else "Serena memory NON esclusa",
           "" if off else "scrivi .serena/project.yml (MEMORY-POLICY.md)")
-ctx=Path.cwd()/"CONTEXT.md"
-L("PASS" if ctx.exists() else "INFO",f"memory progetto: {'CONTEXT.md' if ctx.exists() else 'assente'}",
-  "" if ctx.exists() else "creala con /grill-with-docs")
+ctx=Path.cwd()/"AGENTS.md"
+L("PASS" if ctx.exists() else "INFO",f"memory progetto: {'AGENTS.md' if ctx.exists() else 'assente'}",
+  "" if ctx.exists() else "AGENTS.md e' il contesto letto dagli agenti")
 L("PASS" if len(ms)<=1 else "FAIL",f"memory cross-sessione: {len(ms)} ({ms or 'nessuna'})",
   "" if len(ms)<=1 else "tienine UNA sola")
 

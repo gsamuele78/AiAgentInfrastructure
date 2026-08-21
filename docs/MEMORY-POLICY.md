@@ -2,7 +2,7 @@
 
 | Livello | Canonico | Altri |
 |---|---|---|
-| Progetto (decisioni, glossario) | `CONTEXT.md` + `docs/adr/` (git) | — |
+| Progetto (decisioni, glossario) | **`AGENTS.md`** + `docs/adr/` (git) | `CLAUDE.md` vi rimanda: un solo file |
 | Struttura del codice | graphify (`graph.json`) | — |
 | Cross-sessione personale | **1** memory MCP | mem0: installato ma INERTE (verificato) |
 | Simboli live | Serena semantic | memory Serena **disabilitata** |

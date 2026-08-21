@@ -71,6 +71,8 @@ done
 for f in docs/adr/[0-9]*.md; do
   grep -q '^- \*\*Status\*\*' "$f" || ko "$(basename "$f") senza Status"
 done
+[ -f AGENTS.md ] && ok "AGENTS.md presente (contesto per gli agenti)" || ko "AGENTS.md mancante"
+[ -f CLAUDE.md ] && grep -q AGENTS.md CLAUDE.md && ok "CLAUDE.md rimanda ad AGENTS.md (una sola verita')" || ko "CLAUDE.md assente o non allineato"
 # ogni script deve essere citato almeno una volta nei doc
 for s in create-vm setup-ollama restore-test detect-hardware test-all deploy-all; do
   grep -rq "$s" docs/ README.md && ok "$s documentato" || ko "$s non citato nella documentazione"

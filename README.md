@@ -24,8 +24,13 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 ./scripts/test-all.sh                        # verifica tutto
 ```
 
+> **Lavori con un agente AI su questo repo?** Il contesto sta in
+> [`AGENTS.md`](AGENTS.md) (letto da opencode; `CLAUDE.md` vi rimanda).
+> Contiene invarianti, trappole note, comandi e debito riconosciuto.
+
 ## Struttura
 ```
+├── AGENTS.md                 ★ contesto per agenti AI (+ CLAUDE.md che vi rimanda)
 ├── docs/
 │   ├── PRD.md                requisiti, scope, non-goals, accettazione
 │   ├── adr/                  12 Architecture Decision Records

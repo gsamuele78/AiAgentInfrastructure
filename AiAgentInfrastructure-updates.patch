@@ -1,0 +1,1680 @@
+From 2dfc7c6abe70b5a0741019741e825def883c05d6 Mon Sep 17 00:00:00 2001
+From: Gianfranco Sammartano <gsamuele78@users.noreply.github.com>
+Date: Fri, 21 Aug 2026 08:26:04 +0000
+Subject: [PATCH 1/3] feat: automazione VM, LLM locale e deploy BIOME
+
+Chiude i tre gap di eseguibilita' rispetto al PRD G6 (deploy riproducibile
+senza conoscenza tacita): le procedure erano documentate ma non automatizzate.
+
+- scripts/create-vm.sh: VM riproducibile via cloud-image Debian + cloud-init.
+  Nessuna installazione interattiva, docker preinstallato, riserva DHCP
+  automatica (IP stabile), qcow2 per gli snapshot, autostart. --destroy incluso.
+- scripts/setup-ollama.sh: applica cio' che detect-hardware.sh stampava soltanto.
+  Sceglie il modello dalla VRAM, binda su virbr0 (mai 0.0.0.0), tuning per VRAM
+  stretta, verifica la raggiungibilita' DALLA VM, emette il blocco litellm.
+- services-biome/: file deployabili per il server BIOME (vLLM + nginx mTLS +
+  stunnel client + README con failure modes), non piu' snippet nei markdown.
+- deploy-all.sh: fasi 1 e 6 ora invocano i nuovi script.
+- rimossi i duplicati PRD.md e GITHUB-SETUP.md dalla root (canonici in docs/).
+
+Verificato: config/script validi, devops-audit 21 PASS 0 FAIL.
+---
+ GITHUB-SETUP.md                   | 101 --------------
+ PRD.md                            |  88 -------------
+ README.md                         |   5 +-
+ scripts/create-vm.sh              | 210 ++++++++++++++++++++++++++++++
+ scripts/deploy-all.sh             |  10 +-
+ scripts/setup-ollama.sh           | 143 ++++++++++++++++++++
+ services-biome/.env.example       |   8 ++
+ services-biome/README.md          |  86 ++++++++++++
+ services-biome/docker-compose.yml |  69 ++++++++++
+ services-biome/nginx.conf         |  47 +++++++
+ services-biome/stunnel.conf       |  16 +++
+ 11 files changed, 589 insertions(+), 194 deletions(-)
+ delete mode 100644 GITHUB-SETUP.md
+ delete mode 100644 PRD.md
+ create mode 100755 scripts/create-vm.sh
+ create mode 100755 scripts/setup-ollama.sh
+ create mode 100644 services-biome/.env.example
+ create mode 100644 services-biome/README.md
+ create mode 100644 services-biome/docker-compose.yml
+ create mode 100644 services-biome/nginx.conf
+ create mode 100644 services-biome/stunnel.conf
+
+diff --git a/GITHUB-SETUP.md b/GITHUB-SETUP.md
+deleted file mode 100644
+index 065b8a4..0000000
+--- a/GITHUB-SETUP.md
++++ /dev/null
+@@ -1,101 +0,0 @@
+-# GitHub — setup del repo `AiAgentInfrastructure`
+-
+-Repo: `https://github.com/gsamuele78/AiAgentInfrastructure`
+-
+-## 1. Primo push
+-
+-Il pacchetto è **già un repo git** con commit iniziale. Serve solo il remote:
+-
+-```bash
+-cd AiAgentInfrastructure
+-git remote add origin git@github.com:gsamuele78/AiAgentInfrastructure.git
+-#  (HTTPS:  https://github.com/gsamuele78/AiAgentInfrastructure.git)
+-git branch -M main
+-git push -u origin main
+-```
+-
+-⚠️ **Prima di pushare**, verifica di non avere segreti reali:
+-```bash
+-git ls-files | xargs grep -lE 'sk-ant-[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-z0-9]{20,}' || echo "pulito"
+-./scripts/devops-audit.sh
+-```
+-
+-## 2. Impostazioni consigliate del repo
+-
+-**Visibilità:** privato, almeno finché non hai rimosso ogni riferimento a
+-percorsi e host interni (`192.168.122.x`, nomi macchina, path `/home/jfs`).
+-
+-**Settings → General**
+-- Disabilita Wiki e Projects (non servono a un repo single-maintainer)
+-- Abilita "Automatically delete head branches"
+-
+-**Settings → Branches → Add rule** su `main`:
+-- ✅ Require a pull request before merging (anche da solo: forza la checklist del PR)
+-- ✅ Require status checks to pass → seleziona `syntax`, `secrets`, `docs`
+-- ✅ Require branches to be up to date before merging
+-- ❌ Require approvals (sei solo: bloccheresti te stesso)
+-- ✅ Include administrators — opzionale: onesto, ma ti costringe al PR anche per un typo
+-
+-> Se il PR obbligatorio ti rallenta troppo, un compromesso sensato: nessuna
+-> restrizione sul push, ma **status check obbligatori**. Ottieni la protezione
+-> dagli errori senza la cerimonia.
+-
+-**Settings → Secrets and variables → Actions** (servono al workflow functional):
+-| Secret | Contenuto |
+-|--------|-----------|
+-| `LITELLM_MASTER_KEY` | la master key del gateway |
+-| `VM_SSH_TARGET` | es. `jfs@192.168.122.50` |
+-
+-## 3. Etichette utili
+-```bash
+-gh label create security --color d93f0b --description "Sicurezza / segreti"
+-gh label create adr --color 0e8a16 --description "Richiede una decisione architetturale"
+-gh label create debt --color fbca04 --description "Debito riconosciuto"
+-```
+-
+-## 4. Runner self-hosted (per `functional.yml`)
+-
+-I test funzionali non possono girare sui runner GitHub: la VM, il gateway e
+-Ollama vivono sulla tua macchina. Serve un runner locale.
+-
+-```bash
+-# Settings → Actions → Runners → New self-hosted runner (Linux x64)
+-mkdir -p ~/actions-runner && cd ~/actions-runner
+-curl -o actions-runner.tar.gz -L <URL_DALLA_PAGINA_GITHUB>
+-tar xzf actions-runner.tar.gz
+-./config.sh --url https://github.com/gsamuele78/AiAgentInfrastructure \
+-            --token <TOKEN_DALLA_PAGINA> \
+-            --labels self-hosted,linux,llm-gateway \
+-            --name ermes --unattended
+-sudo ./svc.sh install && sudo ./svc.sh start     # oppure: ./run.sh
+-```
+-
+-Le label `self-hosted,linux,llm-gateway` devono corrispondere a `runs-on` in
+-`functional.yml`.
+-
+-⚠️ **Sicurezza del runner:** un self-hosted runner esegue il codice del repo
+-sulla tua macchina. È accettabile perché il repo è **tuo e privato**. Se un
+-giorno lo rendi pubblico, **rimuovi il runner**: chiunque apra una PR potrebbe
+-eseguire codice arbitrario sull'host.
+-
+-Il workflow ha `continue-on-error: true`: se il laptop è spento il job non fa
+-fallire il repo.
+-
+-## 5. Flusso di lavoro
+-
+-```bash
+-git switch -c feat/lane-biome
+-# ...modifiche...
+-./scripts/devops-audit.sh && ./scripts/audit-integration.py
+-git add -A && git commit -m "feat(gateway): lane BIOME via mTLS"
+-git push -u origin feat/lane-biome
+-gh pr create --fill        # la CI valida; la checklist del PR fa il resto
+-```
+-
+-Per una modifica architetturale: **prima l'ADR**, poi il codice. La CI verifica
+-che gli ADR indicizzati esistano e abbiano uno Status.
+-
+-## 6. Cosa NON versionare
+-Già coperto da `.gitignore`: `.env`, `*.key`, `*.crt` (tranne la root CA),
+-`forward.env`, `master.key`, `*.bak-*`, `audit-*.txt`, `.serena/`, `graph.json`.
+-Vedi `SECURITY.md` per la procedura se un segreto finisce in history.
+diff --git a/PRD.md b/PRD.md
+deleted file mode 100644
+index 0a32783..0000000
+--- a/PRD.md
++++ /dev/null
+@@ -1,88 +0,0 @@
+-# PRD — LLM Integration Gateway
+-
+-| | |
+-|---|---|
+-| **Owner** | Gianfranco Sammartano — IT Officer, BiGeA / BIOME |
+-| **Status** | in implementazione |
+-| **Aggiornato** | 2026-07-27 |
+-
+-## 1. Problema
+-Ogni strumento AI (opencode, OpenChamber, Claude Code, Codex) ha credenziali ed
+-endpoint propri. Quattro difetti **osservati sul sistema reale**:
+-1. **Credenziali sparse e in chiaro** — API key duplicate in `~/litellm_config.yaml`
+-   (perm 664), in `opencode.jsonc`, nelle variabili di shell. Rotazione impossibile.
+-2. **Nessun controllo di spesa** — zero visibilità sui costi.
+-3. **Nessuna garanzia sui dati** — materiale di ricerca non pubblicato inviato a
+-   provider scelti implicitamente, con policy di logging ignote.
+-4. **Configurazione fragile** — 8 provider duplicati verso lo stesso proxy, alias
+-   MCP che causano errori di tool-calling, headroom che bypassava LiteLLM.
+-
+-## 2. Obiettivi
+-| # | Obiettivo | Metrica |
+-|---|-----------|---------|
+-| G1 | Punto di ingresso unico | 1 gateway; 0 client diretti a provider |
+-| G2 | Credenziali centralizzate | 0 segreti world-readable; rotazione in 1 punto |
+-| G3 | Riduzione token | compressione misurabile su payload tool-heavy |
+-| G4 | Lane dati sensibili | ≥1 percorso in cui i dati non escono |
+-| G5 | Sostenibile da 1 persona | < 30 min/mese |
+-| G6 | Riproducibile | deploy da zero senza conoscenza tacita |
+-
+-## 3. Non-obiettivi (espliciti)
+-- ❌ Alta disponibilità / clustering — è una workstation; il rollback è lo snapshot.
+-- ❌ Multi-tenancy — un utente (virtual key esistono, gestione BIOME fuori scope).
+-- ❌ Deployment automatico (CD) — la CI valida, non rilascia (ADR-0010).
+-- ❌ Sostituire i modelli cloud col locale — il locale è Tier 0.
+-- ❌ Fine-tuning/training — solo inferenza.
+-
+-## 4. Requisiti
+-### Funzionali
+-| ID | Requisito | Priorità |
+-|----|-----------|----------|
+-| F1 | Endpoint OpenAI-compatibile unico | MUST |
+-| F2 | Routing multi-provider con fallback | MUST |
+-| F3 | Compressione contesto pre-invio | MUST |
+-| F4 | Lane privacy (no logging/training) | MUST |
+-| F5 | Lane locale su GPU workstation | SHOULD |
+-| F6 | Lane self-hosted BIOME (L40S) | COULD |
+-| F7 | Spend tracking e budget | SHOULD |
+-| F8 | Catalogo modelli aggiornabile senza editing manuale | SHOULD |
+-| F9 | Uso dell'abbonamento Claude Pro dove possibile | SHOULD |
+-
+-### Non-funzionali
+-| ID | Requisito | Verifica |
+-|----|-----------|----------|
+-| N1 | Nessun segreto leggibile da altri utenti | `devops-audit.sh` §2 + CI |
+-| N2 | Gateway non raggiungibile dalla LAN | bind loopback + NAT |
+-| N3 | Ripristino < 5 min | snapshot VM (TC-06) |
+-| N4 | Config validabile prima del deploy | CI + `dockerd --validate` |
+-| N5 | Nessuna dipendenza non mantenibile da 1 persona | audit trimestrale |
+-
+-## 5. Vincoli
+-- **Single maintainer**: ogni componente deve giustificare il costo di manutenzione.
+-- **Hardware**: laptop (RTX A2000 Laptop 4 GB, 31 GB RAM) + server BIOME (2× L40S 48 GB).
+-- **Rete**: BIOME solo via VPN di ateneo.
+-- **Licenze**: preferenza FOSS (MIT/Apache-2.0/GPL).
+-- **Dati**: ricerca non pubblicata → riservatezza.
+-
+-## 6. Criteri di accettazione
+-- [ ] `test-all.sh` senza fallimenti (8 gruppi)
+-- [ ] `audit-integration.py` senza FAIL
+-- [ ] `devops-audit.sh` senza FAIL
+-- [ ] compressione misurata (TC-01)
+-- [ ] nessun client bypassa il gateway (TC-02)
+-- [ ] `.env` e chiavi con permessi 600
+-- [ ] snapshot `baseline` + **restore testato (TC-05)**
+-- [ ] deploy riproducibile da `INSTALL_GUIDE.md`
+-
+-## 7. Rischi
+-| Rischio | Impatto | Prob. | Mitigazione |
+-|---|---|---|---|
+-| Gateway SPOF | alto | media | litellm pipx come fallback; snapshot |
+-| IP VM cambia | medio | **alta** | riserva DHCP + risoluzione per nome |
+-| Termini d'uso abbonamento via proxy | medio | bassa | variante A (diretto) come fallback |
+-| Backup mai testato | alto | media | TC-05 nei criteri + CI functional |
+-| Deriva della configurazione | medio | alta | audit script + CI |
+-| Stack oltre il mantenibile | alto | **alta** | non-goals espliciti; un tool per layer |
+-
+-## 8. Backlog (fuori scope ora)
+-Virtual key per ricercatore BIOME · alerting · multi-agente/A2A · secret manager.
+diff --git a/README.md b/README.md
+index fa7b077..8057dc7 100644
+--- a/README.md
++++ b/README.md
+@@ -17,6 +17,8 @@ per dati sensibili, LLM locale e self-hosted BIOME.
+ ## Quickstart
+ ```bash
+ ./scripts/detect-hardware.sh --emit-config   # cosa regge la macchina
++./scripts/create-vm.sh                       # crea la VM (cloud-init, riproducibile)
++./scripts/setup-ollama.sh                    # LLM locale, configurato e verificato
+ ./scripts/deploy-all.sh --dry-run            # vedi le 8 fasi
+ ./scripts/deploy-all.sh                      # esegui con checkpoint
+ ./scripts/test-all.sh                        # verifica tutto
+@@ -42,9 +44,10 @@ per dati sensibili, LLM locale e self-hosted BIOME.
+ │   ├── DEVOPS-AUDIT.md       best practice + debito riconosciuto
+ │   └── CURRENT-STATE.md      stato verificato dell'host
+ ├── services/                 gira nella VM (compose + Dockerfile + config)
++├── services-biome/           gira sul server BIOME (vLLM + nginx mTLS + stunnel)
+ ├── clients/                  opencode.jsonc, claude, codex, shell-env
+ ├── systemd/                  forward VM + note di rimozione
+-├── scripts/                  deploy, audit, test, backup, restore, detect
++├── scripts/                  create-vm, setup-ollama, deploy, audit, test, backup, restore
+ └── .github/workflows/        validate (CI) + functional (self-hosted)
+ ```
+ 
+diff --git a/scripts/create-vm.sh b/scripts/create-vm.sh
+new file mode 100755
+index 0000000..bd5460d
+--- /dev/null
++++ b/scripts/create-vm.sh
+@@ -0,0 +1,210 @@
++#!/usr/bin/env bash
++# ============================================================
++#  create-vm.sh -- crea la VM dei servizi in modo RIPRODUCIBILE.
++#  Usa le cloud image Debian + cloud-init: nessuna installazione
++#  interattiva, nessun tasksel da ricordare. La VM nasce già con
++#  docker, utente, chiave SSH e IP riservato.
++#
++#  Chiude il gap: VM-DEBIAN-INSTALL.md documentava la procedura
++#  manuale; questo la esegue (PRD G6: deploy senza conoscenza tacita).
++#
++#  Uso:  ./create-vm.sh                      valori di default
++#        VM_NAME=llm-vm VM_IP=192.168.122.50 ./create-vm.sh
++#        ./create-vm.sh --dry-run
++#        ./create-vm.sh --destroy             rimuove la VM
++# ============================================================
++set -uo pipefail
++
++VM_NAME="${VM_NAME:-llm-vm}"
++VM_IP="${VM_IP:-192.168.122.50}"
++VM_RAM_MB="${VM_RAM_MB:-4096}"
++VM_VCPU="${VM_VCPU:-2}"
++VM_DISK_GB="${VM_DISK_GB:-20}"
++VM_USER="${VM_USER:-$USER}"
++SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519.pub}"
++POOL_DIR="${POOL_DIR:-/var/lib/libvirt/images}"
++NET="${NET:-default}"
++# Cloud image Debian 13 (trixie). Aggiorna se cambia la stable.
++IMG_URL="${IMG_URL:-https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2}"
++CACHE="${CACHE:-$HOME/.cache/libvirt-images}"
++
++DRY=0; DESTROY=0
++for a in "$@"; do case "$a" in --dry-run) DRY=1;; --destroy) DESTROY=1;; esac; done
++run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
++say(){ echo -e "\n\033[36m━━ $* ━━\033[0m"; }
++ok(){ echo -e "  \033[32m✓\033[0m $*"; }
++die(){ echo -e "  \033[31m✗\033[0m $*" >&2; exit 1; }
++
++# ---------------------------------------------------------------- destroy
++if [ "$DESTROY" = 1 ]; then
++  say "Rimozione VM $VM_NAME"
++  read -rp "  Confermi la distruzione di '$VM_NAME' e del suo disco? [scrivi il nome] " c
++  [ "$c" = "$VM_NAME" ] || die "annullato"
++  virsh -c qemu:///system destroy "$VM_NAME" 2>/dev/null || true
++  virsh -c qemu:///system undefine "$VM_NAME" --nvram --remove-all-storage 2>/dev/null || true
++  ok "VM rimossa"; exit 0
++fi
++
++# ---------------------------------------------------------------- checks
++say "1. Prerequisiti"
++for t in virt-install virsh qemu-img cloud-localds wget; do
++  command -v "$t" >/dev/null || die "manca '$t' — sudo apt install -y libvirt-daemon-system virtinst cloud-image-utils qemu-utils wget"
++done
++ok "strumenti presenti"
++[ -r "$SSH_KEY" ] || die "chiave SSH non trovata: $SSH_KEY  (ssh-keygen -t ed25519)"
++ok "chiave SSH: $SSH_KEY"
++virsh -c qemu:///system net-info "$NET" >/dev/null 2>&1 || die "rete libvirt '$NET' assente"
++virsh -c qemu:///system net-info "$NET" | grep -q 'Active:.*yes' || run "virsh -c qemu:///system net-start $NET"
++ok "rete '$NET' attiva"
++if virsh -c qemu:///system dominfo "$VM_NAME" >/dev/null 2>&1; then
++  die "la VM '$VM_NAME' esiste già. Usa --destroy oppure VM_NAME=altro"
++fi
++
++# ---------------------------------------------------------------- image
++say "2. Cloud image Debian"
++mkdir -p "$CACHE"
++BASE="$CACHE/$(basename "$IMG_URL")"
++if [ ! -f "$BASE" ]; then
++  run "wget -q --show-progress -O '$BASE.tmp' '$IMG_URL' && mv '$BASE.tmp' '$BASE'"
++  ok "scaricata"
++else ok "già in cache: $BASE"; fi
++# NB: verifica la firma con SHA512SUMS+SHA512SUMS.sign se ti serve la catena completa.
++
++DISK="$POOL_DIR/${VM_NAME}.qcow2"
++say "3. Disco qcow2 (${VM_DISK_GB}G, thin)"
++# qcow2 obbligatorio: senza, niente snapshot virsh.
++run "sudo qemu-img create -f qcow2 -F qcow2 -b '$BASE' '$DISK' ${VM_DISK_GB}G"
++ok "$DISK (backing file: immagine base, thin)"
++
++# ---------------------------------------------------------------- cloud-init
++say "4. cloud-init (utente, docker, hardening)"
++SEED_DIR=$(mktemp -d); trap 'rm -rf "$SEED_DIR"' EXIT
++PUBKEY=$(cat "$SSH_KEY")
++cat > "$SEED_DIR/user-data" <<CIEOF
++#cloud-config
++hostname: ${VM_NAME}
++fqdn: ${VM_NAME}.local
++manage_etc_hosts: true
++
++users:
++  - name: ${VM_USER}
++    groups: [sudo, docker]
++    shell: /bin/bash
++    sudo: ['ALL=(ALL) NOPASSWD:ALL']
++    ssh_authorized_keys:
++      - ${PUBKEY}
++
++# Solo chiave SSH: nessuna password, nessun login root.
++ssh_pwauth: false
++disable_root: true
++
++package_update: true
++packages:
++  - ca-certificates
++  - curl
++  - qemu-guest-agent      # serve a 'virsh domifaddr'
++  - rsync
++
++write_files:
++  # Hardening docker (vedi docs/DOCKER-HARDENING.md)
++  - path: /etc/docker/daemon.json
++    content: |
++      {
++        "log-driver": "local",
++        "log-opts": { "max-size": "10m", "max-file": "5" },
++        "live-restore": true
++      }
++  # journald dimensionato sulla VM: NON i valori del server BIOME
++  - path: /etc/systemd/journald.conf.d/99-vm.conf
++    content: |
++      [Journal]
++      Storage=persistent
++      Compress=yes
++      SystemMaxUse=500M
++      SystemKeepFree=2G
++      MaxRetentionSec=1month
++
++runcmd:
++  - systemctl enable --now qemu-guest-agent
++  # Docker dal repo ufficiale DEBIAN (non ubuntu!)
++  - install -m 0755 -d /etc/apt/keyrings
++  - curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
++  - chmod a+r /etc/apt/keyrings/docker.asc
++  - |
++    echo "deb [arch=\$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian \$(. /etc/os-release && echo \$VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list
++  - apt-get update -qq
++  - DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
++  - usermod -aG docker ${VM_USER}
++  - systemctl restart systemd-journald
++  - apt-get --purge autoremove -y -qq && apt-get clean
++  - touch /var/lib/cloud/instance/PROVISIONED
++
++final_message: "VM ${VM_NAME} pronta dopo \$UPTIME secondi"
++CIEOF
++
++cat > "$SEED_DIR/meta-data" <<CIEOF
++instance-id: ${VM_NAME}-$(date +%s)
++local-hostname: ${VM_NAME}
++CIEOF
++
++SEED="$POOL_DIR/${VM_NAME}-seed.iso"
++run "cloud-localds '$SEED_DIR/seed.iso' '$SEED_DIR/user-data' '$SEED_DIR/meta-data'"
++run "sudo cp '$SEED_DIR/seed.iso' '$SEED'"
++ok "seed cloud-init generato"
++
++# ---------------------------------------------------------------- ip riservato
++say "5. Riserva DHCP (IP stabile — vedi docs/VM-KVM-GUIDE.md)"
++MAC=$(printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
++if virsh -c qemu:///system net-dumpxml "$NET" | grep -q "ip='$VM_IP'"; then
++  echo "  riserva per $VM_IP già presente: la sostituisco"
++  run "virsh -c qemu:///system net-update $NET delete ip-dhcp-host \"<host ip='$VM_IP'/>\" --live --config || true"
++fi
++run "virsh -c qemu:///system net-update $NET add ip-dhcp-host \
++  \"<host mac='$MAC' name='$VM_NAME' ip='$VM_IP'/>\" --live --config"
++ok "$MAC → $VM_IP (persistente)"
++
++# ---------------------------------------------------------------- create
++say "6. Creazione VM"
++run "sudo virt-install \
++  --name '$VM_NAME' \
++  --memory $VM_RAM_MB --vcpus $VM_VCPU \
++  --cpu host-passthrough \
++  --disk path='$DISK',format=qcow2,bus=virtio \
++  --disk path='$SEED',device=cdrom \
++  --network network=$NET,mac=$MAC,model=virtio \
++  --os-variant debian12 \
++  --graphics none --console pty,target_type=serial \
++  --import --noautoconsole"
++run "virsh -c qemu:///system autostart '$VM_NAME'"
++ok "VM creata e impostata in autostart"
++
++# ---------------------------------------------------------------- wait
++if [ "$DRY" = 0 ]; then
++  say "7. Attesa provisioning (cloud-init installa docker: 2-4 min)"
++  for i in $(seq 1 60); do
++    if ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=3 \
++         "$VM_USER@$VM_IP" 'test -f /var/lib/cloud/instance/PROVISIONED' 2>/dev/null; then
++      ok "provisioning completato"; break
++    fi
++    printf '\r  attesa... %ds' $((i*10)); sleep 10
++  done
++  echo
++  ssh -o ConnectTimeout=5 "$VM_USER@$VM_IP" 'docker --version && docker compose version' 2>/dev/null \
++    && ok "docker operativo" || echo -e "  \033[33m!\033[0m docker non ancora pronto: ricontrolla tra un minuto"
++fi
++
++cat <<NEXT
++
++  VM:   $VM_NAME   ($VM_VCPU vCPU, ${VM_RAM_MB}MB, ${VM_DISK_GB}G qcow2)
++  IP:   $VM_IP     (riserva DHCP: non cambia più)
++  SSH:  ssh $VM_USER@$VM_IP
++
++  PROSSIMI PASSI
++    1) snapshot pulito PRIMA di installare i servizi:
++         virsh -c qemu:///system snapshot-create-as $VM_NAME clean-install
++    2) deploy dei servizi:
++         scp -r services/ $VM_USER@$VM_IP:~/llm-services/
++         ssh $VM_USER@$VM_IP 'cd ~/llm-services && cp .env.example .env && chmod 600 .env'
++         # compila .env, poi:  docker compose build && docker compose up -d
++    3) forward sull'host:  ./deploy-all.sh 2
++NEXT
+diff --git a/scripts/deploy-all.sh b/scripts/deploy-all.sh
+index 7827125..29554e8 100755
+--- a/scripts/deploy-all.sh
++++ b/scripts/deploy-all.sh
+@@ -20,9 +20,11 @@ echo "╚═══════════════════════
+ if ph 0; then say "FASE 0 — Rilevamento hardware"
+ run "./detect-hardware.sh"; ask "Continuare?" || exit 0; fi
+ 
+-if ph 1; then say "FASE 1 — VM: servizi"
++if ph 1; then say "FASE 1 — VM: creazione + servizi"
++ask "Creare la VM ora con create-vm.sh (cloud-init, automatico)?" \
++  && run "./create-vm.sh" || warn "creazione VM saltata (manuale: docs/VM-DEBIAN-INSTALL.md)"
+ cat <<'X'
+-  Nella VM (creala con docs/VM-DEBIAN-INSTALL.md):
++  Poi, deploy dei servizi nella VM:
+     scp -r services/ jfs@<VM_IP>:~/llm-services/
+     ssh jfs@<VM_IP>; cd ~/llm-services
+     cp .env.example .env && chmod 600 .env && $EDITOR .env
+@@ -66,8 +68,8 @@ ask "Fatto?" && ok "dual-auth pronta" || warn "da completare"; fi
+ if ph 6; then say "FASE 6 — LLM locale (opzionale)"
+ if command -v nvidia-smi >/dev/null 2>&1; then
+   run "./detect-hardware.sh --emit-config"
+-  ask "Installare Ollama?" && { run "curl -fsSL https://ollama.com/install.sh | sh"
+-    warn "applica i frammenti sopra (systemctl edit ollama.service)"; } || warn saltata
++  ask "Installare e configurare Ollama ora?" \
++    && run "./setup-ollama.sh" || warn saltata
+ else warn "nessuna GPU: salto"; fi; fi
+ 
+ if ph 7; then say "FASE 7 — Verifica"
+diff --git a/scripts/setup-ollama.sh b/scripts/setup-ollama.sh
+new file mode 100755
+index 0000000..593cb16
+--- /dev/null
++++ b/scripts/setup-ollama.sh
+@@ -0,0 +1,143 @@
++#!/usr/bin/env bash
++# ============================================================
++#  setup-ollama.sh -- installa e configura l'LLM LOCALE, applicando
++#  ciò che detect-hardware.sh si limitava a stampare.
++#
++#  Sceglie il modello in base alla VRAM, binda su virbr0 (mai 0.0.0.0),
++#  applica il tuning per VRAM stretta, verifica dalla VM e stampa il
++#  blocco da aggiungere a litellm_config.yaml.
++#
++#  Uso:  ./setup-ollama.sh
++#        ./setup-ollama.sh --dry-run
++#        MODEL=qwen2.5-coder:7b ./setup-ollama.sh    forza il modello
++# ============================================================
++set -uo pipefail
++DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
++run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
++say(){ echo -e "\n\033[36m━━ $* ━━\033[0m"; }
++ok(){ echo -e "  \033[32m✓\033[0m $*"; }
++warn(){ echo -e "  \033[33m!\033[0m $*"; }
++die(){ echo -e "  \033[31m✗\033[0m $*" >&2; exit 1; }
++
++# ---------------------------------------------------------------- 1. rete
++say "1. Bridge libvirt (dove la VM raggiunge l'host)"
++BRIP=$(ip -4 -o addr show virbr0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
++if [ -z "$BRIP" ]; then
++  warn "virbr0 assente: la rete libvirt 'default' non è attiva"
++  warn "Ollama verrà bindato su 127.0.0.1 e la VM NON lo vedrà"
++  BRIP="127.0.0.1"
++else ok "virbr0 = $BRIP  → Ollama ascolterà qui (non su 0.0.0.0)"; fi
++
++# ---------------------------------------------------------------- 2. gpu
++say "2. GPU e scelta del modello"
++VRAM=0; LAYERS=""
++if command -v nvidia-smi >/dev/null 2>&1; then
++  nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | sed 's/^/  GPU: /'
++  VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')
++else warn "nessuna GPU NVIDIA: inferenza su CPU (lenta, adatta solo a batch)"; fi
++RAM_AV=$(awk '/MemAvailable/{printf "%d", $2/1024/1024}' /proc/meminfo)
++
++if [ -n "${MODEL:-}" ]; then
++  ok "modello forzato: $MODEL"
++elif [ "$VRAM" -ge 20000 ]; then MODEL="qwen2.5-coder:14b"
++elif [ "$VRAM" -ge 10000 ]; then MODEL="qwen2.5-coder:7b"
++elif [ "$VRAM" -ge 6000 ];  then MODEL="qwen2.5-coder:7b"; LAYERS=24
++elif [ "$VRAM" -ge 3500 ];  then
++  MODEL="qwen2.5-coder:3b"
++  if [ "$RAM_AV" -ge 12 ]; then
++    SECOND="qwen2.5-coder:7b"; LAYERS=28
++    ok "VRAM ${VRAM}MiB + ${RAM_AV}GB RAM libera → 3B in VRAM + 7B in offload parziale"
++  fi
++else MODEL="qwen2.5-coder:3b"; warn "VRAM insufficiente: girerà quasi tutto su CPU"; fi
++ok "modello principale: $MODEL${SECOND:+  (secondario: $SECOND)}"
++
++# ---------------------------------------------------------------- 3. install
++say "3. Installazione Ollama"
++if command -v ollama >/dev/null 2>&1; then ok "già installato ($(ollama --version 2>/dev/null | head -1))"
++else run "curl -fsSL https://ollama.com/install.sh | sh"; fi
++
++# ---------------------------------------------------------------- 4. config
++say "4. Configurazione systemd (bind + tuning VRAM stretta)"
++CHASSIS=$(hostnamectl chassis 2>/dev/null || echo unknown)
++[ -d /sys/class/power_supply/BAT0 ] && CHASSIS=laptop
++OVR=/etc/systemd/system/ollama.service.d/override.conf
++run "sudo install -d /etc/systemd/system/ollama.service.d"
++CONF="[Unit]
++# virbr0 deve esistere prima del bind, altrimenti il servizio fallisce
++After=libvirtd.service network-online.target
++Wants=network-online.target
++
++[Service]
++# SOLO sul bridge libvirt: raggiungibile dalle VM, invisibile alla LAN.
++# Ollama NON ha autenticazione: per questo il bind è ristretto.
++Environment=\"OLLAMA_HOST=${BRIP}:11434\"
++Environment=\"OLLAMA_FLASH_ATTENTION=1\"
++Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"
++Environment=\"OLLAMA_MAX_LOADED_MODELS=1\"$([ "$CHASSIS" = laptop ] && echo "
++Environment=\"OLLAMA_KEEP_ALIVE=2m\"")
++"
++if [ "$DRY" = 1 ]; then echo "  [dry] scriverebbe $OVR:"; echo "$CONF" | sed 's/^/      /'
++else echo "$CONF" | sudo tee "$OVR" >/dev/null; ok "$OVR scritto"; fi
++[ "$CHASSIS" = laptop ] && ok "laptop rilevato: KEEP_ALIVE=2m (termico/batteria)"
++run "sudo systemctl daemon-reload && sudo systemctl restart ollama"
++sleep 3
++
++# ---------------------------------------------------------------- 5. firewall
++if command -v ufw >/dev/null 2>&1 && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
++  say "5. Firewall"
++  run "sudo ufw allow from 192.168.122.0/24 to any port 11434 proto tcp"
++  ok "consentito solo dalla subnet libvirt"
++fi
++
++# ---------------------------------------------------------------- 6. modelli
++say "6. Download modelli"
++run "ollama pull $MODEL"
++[ -n "${SECOND:-}" ] && run "ollama pull $SECOND"
++
++# ---------------------------------------------------------------- 7. verifica
++say "7. Verifica"
++if [ "$DRY" = 0 ]; then
++  ss -tlnp 2>/dev/null | grep -q "${BRIP}:11434" && ok "in ascolto su ${BRIP}:11434" \
++    || warn "non in ascolto dove atteso: systemctl status ollama"
++  curl -fsS --max-time 5 "http://${BRIP}:11434/api/tags" >/dev/null 2>&1 \
++    && ok "API risponde" || warn "API non risponde"
++  if [ -f "$HOME/.config/litellm/forward.env" ]; then
++    . "$HOME/.config/litellm/forward.env"
++    ssh -o ConnectTimeout=5 "${VM_USER:-$USER}@${VM_IP}" \
++      "curl -fsS --max-time 5 http://${BRIP}:11434/api/tags >/dev/null" 2>/dev/null \
++      && ok "raggiungibile DALLA VM (il test che conta)" \
++      || warn "la VM non lo raggiunge: controlla il bind e il firewall"
++  fi
++fi
++
++# ---------------------------------------------------------------- 8. litellm
++say "8. Blocco per services/litellm_config.yaml"
++cat <<YML
++
++  - model_name: local-fast
++    litellm_params:
++      model: ollama_chat/${MODEL}
++      api_base: http://${BRIP}:11434
++      timeout: 300
++$([ -n "${SECOND:-}" ] && cat <<Y2
++  - model_name: local-good
++    litellm_params:
++      model: ollama_chat/${SECOND}
++      api_base: http://${BRIP}:11434
++      timeout: 300
++Y2
++)
++# in litellm_settings.fallbacks:
++#   - local: [$([ -n "${SECOND:-}" ] && echo '"local-good", ')"local-fast"]
++YML
++[ -n "${LAYERS:-}" ] && cat <<TUN
++
++  OFFLOAD PARZIALE: il modello non entra tutto in VRAM.
++    ollama run ${SECOND:-$MODEL} --verbose
++    >>> /set parameter num_gpu ${LAYERS}
++  Alza finché non rallenta o va in errore; 'ollama ps' mostra la ripartizione.
++  ⚠️ Mai far toccare lo swap: la velocità crolla di ordini di grandezza.
++TUN
++echo
++echo "  Aggiungi il blocco al config nella VM, poi:  docker compose up -d"
++echo "  Test:  ./test-all.sh local"
+diff --git a/services-biome/.env.example b/services-biome/.env.example
+new file mode 100644
+index 0000000..07d521b
+--- /dev/null
++++ b/services-biome/.env.example
+@@ -0,0 +1,8 @@
++# services-biome/.env  — chmod 600, MAI in git.
++BIND_IP=10.0.0.10                # IP interno/VPN del server BIOME (NON 0.0.0.0)
++GPU_ID=0                         # una GPU per modello: la 1 resta alla ricerca
++MODEL_ID=Qwen/Qwen3-Coder-Next
++MAX_LEN=131072
++VLLM_TAG=latest                  # PSE: sostituisci con un digest sha256
++HF_TOKEN=hf_CHANGEME
++VLLM_API_KEY=CHANGEME-openssl-rand-hex-32
+diff --git a/services-biome/README.md b/services-biome/README.md
+new file mode 100644
+index 0000000..efdbe28
+--- /dev/null
++++ b/services-biome/README.md
+@@ -0,0 +1,86 @@
++# services-biome — vLLM su L40S, esposto in mTLS
++
++File **deployabili** (non snippet). Il razionale è in `docs/BIOME-L40S.md`,
++la decisione in `docs/adr/0009-mtls-per-biome.md`.
++
++```
++[VM gateway] LiteLLM → stunnel (mTLS client) ──VPN──► nginx :8443 ──► vLLM :8000 (loopback) ──► L40S #0
++```
++
++## Deploy sul server BIOME
++
++```bash
++# 1. certificati step-ca
++sudo install -d certs
++step ca certificate "biome-llm.biome.unibo.it" certs/server.crt certs/server.key
++step ca root certs/step-root.crt
++sudo chmod 600 certs/server.key
++
++# 2. configurazione
++cp .env.example .env && chmod 600 .env && $EDITOR .env   # BIND_IP, HF_TOKEN, VLLM_API_KEY
++
++# 3. avvio (il primo caricamento del modello richiede diversi minuti)
++docker compose up -d
++docker compose logs -f vllm | grep -i "started\|error"
++curl -s localhost:8000/health
++
++# 4. firewall: solo la subnet VPN
++sudo ufw allow from <SUBNET_VPN> to any port 8443 proto tcp
++
++# 5. rinnovo automatico dei certificati (step-ca usa cert a vita breve)
++step ca renew --daemon --exec "docker compose restart nginx" certs/server.crt certs/server.key
++```
++
++## Lato client (nella VM del gateway)
++
++```bash
++step ca certificate "litellm-gateway.jfs" certs/client.crt certs/client.key
++chmod 600 certs/client.key
++# aggiungi al compose della VM il servizio 'biome-tls' con stunnel.conf
++```
++```yaml
++  biome-tls:
++    image: alpine:3.20
++    command: sh -c "apk add --no-cache stunnel && exec stunnel /etc/stunnel/stunnel.conf"
++    volumes:
++      - ../services-biome/stunnel.conf:/etc/stunnel/stunnel.conf:ro
++      - ./certs:/certs:ro
++    restart: unless-stopped
++```
++E in `litellm_config.yaml`:
++```yaml
++  - model_name: biome-coder
++    litellm_params:
++      model: openai/biome-coder
++      api_base: http://biome-tls:8443/v1
++      api_key: os.environ/VLLM_API_KEY
++      timeout: 600
++```
++
++## Verifica — il test che conta
++```bash
++# SENZA certificato client: DEVE fallire
++curl -sk https://biome-llm.biome.unibo.it:8443/v1/models        # atteso: errore handshake
++# CON certificato: 200
++curl -s --cert certs/client.crt --key certs/client.key \
++     --cacert certs/step-root.crt https://biome-llm.biome.unibo.it:8443/v1/models
++# dal gateway
++./scripts/test-all.sh biome
++```
++
++## Failure modes
++| # | Sintomo | Causa | Fix |
++|---|---|---|---|
++| 1 | vLLM crasha all'avvio senza messaggi chiari | shared memory | `shm_size: 16gb` |
++| 2 | OOM al caricamento | `gpu-memory-utilization` troppo alto | 0.90, mai 1.0; riduci `MAX_LEN` |
++| 3 | risposte in blocco invece che streaming | buffering nginx | `proxy_buffering off` |
++| 4 | handshake rifiutato con cert valido | root CA sbagliata | `step ca root` aggiornata |
++| 5 | gateway "giù" senza motivo | cert scaduto | `step ca renew --daemon` |
++| 6 | la VM non raggiunge BIOME | VPN blocca il forwarding da virbr0 | `ip route get`, `ip_forward` |
++| 7 | ricercatori senza GPU | il servizio la occupa in modo residente | **governance**, non tecnica |
++
++## Governance — prima di accendere
++Un servizio LLM **occupa la VRAM in modo residente**, a differenza dei job batch.
++Da concordare con Chiarucci e il gruppo: la GPU 0 è dedicabile stabilmente? chi
++sono gli utenti? L'argomento non è il costo ma la **sovranità del dato** —
++ricerca non pubblicata che non lascia l'infrastruttura di ateneo.
+diff --git a/services-biome/docker-compose.yml b/services-biome/docker-compose.yml
+new file mode 100644
+index 0000000..1c58891
+--- /dev/null
++++ b/services-biome/docker-compose.yml
+@@ -0,0 +1,69 @@
++# ============================================================
++#  Stack BIOME L40S: vLLM + nginx (mTLS). Gira SUL SERVER BIOME.
++#  vLLM non è mai esposto: solo nginx parla col mondo, e solo in mTLS.
++#  Vedi docs/BIOME-L40S.md e docs/adr/0009-mtls-per-biome.md
++# ============================================================
++services:
++  vllm:
++    image: "vllm/vllm-openai:${VLLM_TAG:-latest}"   # PSE: pinna un digest
++    container_name: biome-vllm
++    restart: unless-stopped
++    # SOLO loopback: nginx è l'unico ingresso.
++    ports: ["127.0.0.1:8000:8000"]
++    env_file: .env
++    environment:
++      HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN}
++      VLLM_API_KEY: ${VLLM_API_KEY}
++    volumes:
++      - hf-cache:/root/.cache/huggingface
++    # ⚠️ senza shm_size adeguato vLLM crasha in modo oscuro
++    shm_size: "16gb"
++    deploy:
++      resources:
++        reservations:
++          devices:
++            - driver: nvidia
++              # SOLO GPU 0: la 1 resta ai workload di ricerca.
++              # L40S non ha NVLink -> tensor-parallel via PCIe costa: evitalo.
++              device_ids: ["${GPU_ID:-0}"]
++              capabilities: [gpu]
++    command:
++      - --model=${MODEL_ID:-Qwen/Qwen3-Coder-Next}
++      - --served-model-name=biome-coder
++      - --quantization=fp8          # Ada: FP8 nativo, meglio di Q4 a pari size
++      - --kv-cache-dtype=fp8        # più contesto nella stessa VRAM
++      - --max-model-len=${MAX_LEN:-131072}
++      - --gpu-memory-utilization=0.90   # mai 1.0: OOM al caricamento
++      - --host=0.0.0.0              # dentro il container; fuori è loopback
++      - --port=8000
++      - --api-key=${VLLM_API_KEY}
++    healthcheck:
++      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/health || exit 1"]
++      interval: 30s
++      timeout: 10s
++      retries: 5
++      start_period: 900s            # il primo caricamento del modello è lungo
++    security_opt: ["no-new-privileges:true"]
++    logging:
++      driver: local
++      options: { max-size: "20m", max-file: "3" }
++
++  nginx:
++    image: nginx:1.27-alpine
++    container_name: biome-nginx
++    restart: unless-stopped
++    # Ascolta SOLO sull'IP interno/VPN, mai su 0.0.0.0.
++    ports: ["${BIND_IP}:8443:8443"]
++    volumes:
++      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
++      - ./certs:/etc/nginx/certs:ro     # server.crt/key + step-root.crt
++    depends_on:
++      vllm: { condition: service_healthy }
++    network_mode: "service:vllm"        # parla a vLLM su 127.0.0.1
++    security_opt: ["no-new-privileges:true"]
++    logging:
++      driver: local
++      options: { max-size: "20m", max-file: "3" }
++
++volumes:
++  hf-cache: {}
+diff --git a/services-biome/nginx.conf b/services-biome/nginx.conf
+new file mode 100644
+index 0000000..55999a2
+--- /dev/null
++++ b/services-biome/nginx.conf
+@@ -0,0 +1,47 @@
++# nginx davanti a vLLM: TLS 1.3 + mTLS (step-ca) + rate limit.
++# Chi non ha un certificato client valido viene rifiutato durante
++# l'handshake, PRIMA di raggiungere l'applicazione.
++
++limit_req_zone $ssl_client_s_dn zone=llm:10m rate=30r/m;
++
++server {
++    listen 8443 ssl;
++    http2 on;
++    server_name _;
++
++    ssl_certificate     /etc/nginx/certs/server.crt;
++    ssl_certificate_key /etc/nginx/certs/server.key;
++    ssl_protocols TLSv1.3;
++
++    # --- mTLS: solo client con certificato emesso dalla TUA step-ca ---
++    ssl_client_certificate /etc/nginx/certs/step-root.crt;
++    ssl_verify_client on;
++    ssl_verify_depth 2;
++
++    # Il DN del client finisce nei log: audit di chi ha chiamato cosa.
++    log_format mtls '$remote_addr "$ssl_client_s_dn" $status '
++                    '$request_time "$request" $body_bytes_sent';
++    access_log /var/log/nginx/biome-llm.log mtls;
++
++    location /v1/ {
++        limit_req zone=llm burst=10 nodelay;
++
++        proxy_pass http://127.0.0.1:8000;
++        proxy_set_header Host $host;
++        proxy_set_header X-Client-DN $ssl_client_s_dn;
++
++        # --- streaming SSE: senza questi la risposta arriva tutta insieme ---
++        proxy_buffering off;
++        proxy_cache off;
++        chunked_transfer_encoding on;
++
++        # generazioni lunghe
++        proxy_read_timeout 600s;
++        proxy_send_timeout 600s;
++    }
++
++    location /health {
++        proxy_pass http://127.0.0.1:8000/health;
++        access_log off;
++    }
++}
+diff --git a/services-biome/stunnel.conf b/services-biome/stunnel.conf
+new file mode 100644
+index 0000000..186b8d4
+--- /dev/null
++++ b/services-biome/stunnel.conf
+@@ -0,0 +1,16 @@
++# Sidecar mTLS LATO CLIENT (gira nella VM del gateway, non su BIOME).
++# LiteLLM parla HTTP in locale al sidecar; il sidecar fa mTLS verso BIOME.
++# Scelta PSE: non dipendere dal supporto ai client-cert di LiteLLM, che
++# varia tra versioni.
++foreground = yes
++output = /dev/stdout
++
++[biome-llm]
++client = yes
++accept  = 0.0.0.0:8443                    # LiteLLM chiama qui, in chiaro
++connect = biome-llm.biome.unibo.it:8443   # adatta all'FQDN reale
++cert    = /certs/client.crt               # certificato CLIENT (mTLS)
++key     = /certs/client.key
++CAfile  = /certs/step-root.crt            # valida il server
++verifyChain = yes
++sslVersion = TLSv1.3
+-- 
+2.43.0
+
+
+From ff49414201f6a0d14549de73dfbeebcf58262c24 Mon Sep 17 00:00:00 2001
+From: Gianfranco Sammartano <gsamuele78@users.noreply.github.com>
+Date: Fri, 21 Aug 2026 09:27:36 +0000
+Subject: [PATCH 2/3] feat(ci,docs): suite test degli script, CI estesa, ADR
+ 0011-0012
+
+Completa la copertura test/documentazione/CI dell'automazione introdotta
+nel commit precedente, senza rimuovere nulla di esistente.
+
+TEST
+- scripts/test-scripts.sh: 57 verifiche su L1/L2. Oltre a sintassi ed
+  eseguibilita', controlla i CONTRATTI (ogni script che modifica il
+  sistema espone --dry-run; quelli dichiarati read-only non modificano
+  nulla) e le INVARIANTI DI SICUREZZA nel codice: Ollama mai su 0.0.0.0,
+  postgres senza porte pubblicate, vLLM su loopback, config :ro,
+  pre-check del gateway in cleanup-host, conferma su create-vm --destroy,
+  nessun segreto hardcoded. Gira su runner GitHub.
+
+CI
+- validate.yml: nuovo job 'scripts' (test-scripts + dry-run di tutti gli
+  script che modificano il sistema: se un dry-run crasha su macchina
+  vuota, crasherebbe anche l'esecuzione reale).
+- validate.yml: il job 'build' valida anche services-biome/compose.
+- functional.yml: esegue test-scripts prima dei test sull'host.
+- shellcheck ora con -S error; corretto SC2148 in clients/shell-env.sh
+  (file sourced: aggiunta directive 'shellcheck shell=bash').
+
+DOCUMENTAZIONE
+- docs/VM-AUTOMATION.md: uso di create-vm.sh e setup-ollama.sh, ciclo
+  completo da zero, prerequisiti, avvertenze di sicurezza.
+- INSTALL_GUIDE: fasi 1 e 6 riscritte sul percorso automatico, con il
+  manuale come fallback dichiarato.
+- TEST-PLAN: nuovo livello L1b + casi TC-07 (invarianti) e TC-08 (dry-run).
+
+ADR
+- 0011: cloud-init invece di installazione manuale (il preseed/tasksel
+  manuale violava l'obiettivo G6 del PRD).
+- 0012: repo SEPARATO per il servizio multi-tenant BIOME. Il multi-tenant
+  contraddice un non-goal esplicito del PRD di questo repo; services-biome/
+  resta qui finche' e' a uso singolo e migra all'arrivo del primo tenant
+  diverso dal maintainer.
+
+Verificato in locale: syntax PASS, scripts 57/57, dry-run PASS,
+shellcheck(error) PASS, secrets PASS, docs PASS, devops-audit 21 PASS 0 FAIL.
+---
+ .github/workflows/functional.yml              |  3 +
+ .github/workflows/validate.yml                | 28 ++++++-
+ README.md                                     |  5 +-
+ clients/shell-env.sh                          |  2 +
+ docs/INSTALL_GUIDE.md                         | 23 ++++--
+ docs/TEST-PLAN.md                             | 11 +++
+ docs/VM-AUTOMATION.md                         | 70 ++++++++++++++++
+ docs/adr/0011-cloud-init-per-la-vm.md         | 35 ++++++++
+ .../0012-repo-separato-per-multi-tenant.md    | 49 +++++++++++
+ docs/adr/README.md                            |  2 +
+ scripts/test-scripts.sh                       | 81 +++++++++++++++++++
+ 11 files changed, 299 insertions(+), 10 deletions(-)
+ create mode 100644 docs/VM-AUTOMATION.md
+ create mode 100644 docs/adr/0011-cloud-init-per-la-vm.md
+ create mode 100644 docs/adr/0012-repo-separato-per-multi-tenant.md
+ create mode 100755 scripts/test-scripts.sh
+
+diff --git a/.github/workflows/functional.yml b/.github/workflows/functional.yml
+index 2313780..7f9aaf7 100644
+--- a/.github/workflows/functional.yml
++++ b/.github/workflows/functional.yml
+@@ -19,6 +19,9 @@ jobs:
+     steps:
+       - uses: actions/checkout@v4
+ 
++      - name: Test degli script
++        run: ./scripts/test-scripts.sh
++
+       - name: Rilevamento hardware
+         run: ./scripts/detect-hardware.sh
+ 
+diff --git a/.github/workflows/validate.yml b/.github/workflows/validate.yml
+index 1cfc1da..c999613 100644
+--- a/.github/workflows/validate.yml
++++ b/.github/workflows/validate.yml
+@@ -47,10 +47,33 @@ jobs:
+           fail=0
+           for s in $(find . -name '*.sh' -not -path './.git/*'); do
+             bash -n "$s" || fail=1
+-            shellcheck -e SC1091,SC2086,SC2181,SC2015 "$s" || fail=1
++            shellcheck -e SC1091,SC2086,SC2181,SC2015,SC2016 -S error "$s" || fail=1
+           done
+           exit $fail
+ 
++  scripts:
++    name: Test degli script (contratti, invarianti sicurezza)
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v4
++      - uses: actions/setup-python@v5
++        with: { python-version: "3.12" }
++      - run: python -m pip install --quiet pyyaml
++      - name: Suite test-scripts
++        # Verifica: sintassi, bit eseguibile, contratto --dry-run,
++        # invarianti di sicurezza (Ollama mai su 0.0.0.0, postgres non
++        # esposto, vLLM su loopback, conferma su --destroy), coerenza ADR.
++        run: ./scripts/test-scripts.sh
++      - name: Dry-run degli script che modificano il sistema
++        # Devono uscire puliti anche su una macchina che non ha nulla:
++        # se un dry-run crasha, crasherebbe anche l'esecuzione reale.
++        run: |
++          ./scripts/detect-hardware.sh > /dev/null
++          ./scripts/setup-ollama.sh --dry-run > /dev/null
++          ./scripts/cleanup-host.sh --dry-run > /dev/null
++          ./scripts/deploy-all.sh --dry-run > /dev/null
++          echo "tutti i dry-run completati senza errori"
++
+   build:
+     name: Build immagine (gate callback)
+     runs-on: ubuntu-latest
+@@ -59,6 +82,9 @@ jobs:
+       - name: compose config
+         working-directory: services
+         run: cp .env.example .env && docker compose config >/dev/null && echo OK
++      - name: compose BIOME valido
++        working-directory: services-biome
++        run: cp .env.example .env && BIND_IP=127.0.0.1 docker compose config >/dev/null && echo OK
+       - name: docker build
+         working-directory: services
+         # Il Dockerfile contiene il gate `import HeadroomCallback`: se il
+diff --git a/README.md b/README.md
+index 8057dc7..291592e 100644
+--- a/README.md
++++ b/README.md
+@@ -28,13 +28,14 @@ per dati sensibili, LLM locale e self-hosted BIOME.
+ ```
+ ├── docs/
+ │   ├── PRD.md                requisiti, scope, non-goals, accettazione
+-│   ├── adr/                  10 Architecture Decision Records
++│   ├── adr/                  12 Architecture Decision Records
+ │   ├── TEST-PLAN.md          matrice requisiti→test, casi critici
+ │   ├── INSTALL_GUIDE.md      ★ deploy passo-passo
+ │   ├── DUAL-AUTH.md          abbonamento Claude Pro + gateway insieme
+ │   ├── CLAUDE-SUBSCRIPTION.md  auth, precedenza variabili, termini d'uso
+ │   ├── AGENTS-SETUP.md       opencode, OpenChamber, MCP, VSCodium
+-│   ├── VM-DEBIAN-INSTALL.md  netinstall minimale
++│   ├── VM-AUTOMATION.md      create-vm + setup-ollama (automazione)
++│   ├── VM-DEBIAN-INSTALL.md  netinstall minimale (fallback manuale)
+ │   ├── VM-KVM-GUIDE.md       rete, riserva DHCP, snapshot
+ │   ├── DOCKER-HARDENING.md   data-root, log driver, journald
+ │   ├── GPU-LOCAL-LLM.md      Ollama su A2000 (4 GB) + offload
+diff --git a/clients/shell-env.sh b/clients/shell-env.sh
+index 8c3c1eb..d41ecb1 100644
+--- a/clients/shell-env.sh
++++ b/clients/shell-env.sh
+@@ -1,3 +1,5 @@
++# shellcheck shell=bash
++# Questo file va SORGATO (source), non eseguito: nessuno shebang.
+ # Sorgi da ~/.bashrc. NON esporta ANTHROPIC_*: scavalcherebbe l'abbonamento.
+ export PATH="$HOME/.opencode/bin:$PATH"
+ [ -r "$HOME/.config/litellm/master.key" ] && \
+diff --git a/docs/INSTALL_GUIDE.md b/docs/INSTALL_GUIDE.md
+index cd40b9d..6875b7e 100644
+--- a/docs/INSTALL_GUIDE.md
++++ b/docs/INSTALL_GUIDE.md
+@@ -11,9 +11,13 @@ Sotto, la versione manuale.
+ ./scripts/detect-hardware.sh --emit-config   # sizing VM + modello locale
+ ```
+ 
+-## Fase 1 — VM: servizi
+-Crea la VM con `VM-DEBIAN-INSTALL.md` (netinstall minimale) e `VM-KVM-GUIDE.md`
+-(rete, riserva DHCP, snapshot). Poi:
++## Fase 1 — VM: creazione + servizi
++**Automatico** (consigliato — vedi `VM-AUTOMATION.md`):
++```bash
++./scripts/create-vm.sh                # cloud-init: VM pronta con docker e IP riservato
++virsh -c qemu:///system snapshot-create-as llm-vm clean-install
++```
++*Manuale* (fallback): `VM-DEBIAN-INSTALL.md` + `VM-KVM-GUIDE.md`. Poi in entrambi i casi:
+ ```bash
+ scp -r services/ jfs@<VM_IP>:~/llm-services/
+ ssh jfs@<VM_IP>; cd ~/llm-services
+@@ -53,13 +57,18 @@ Vedi `DUAL-AUTH.md`. In sintesi: opencode/codex sul gateway (già fatto),
+ Claude Code sull'abbonamento (scegli variante A/B/C).
+ 
+ ## Fase 6 — LLM locale (opzionale)
+-Vedi `GPU-LOCAL-LLM.md`: Ollama sull'host, bind su `192.168.122.1`, **mai** `0.0.0.0`.
++```bash
++./scripts/setup-ollama.sh --dry-run && ./scripts/setup-ollama.sh
++```
++Razionale e scelta dei modelli: `GPU-LOCAL-LLM.md`. Bind su `192.168.122.1`,
++**mai** `0.0.0.0` (Ollama non ha autenticazione).
+ 
+ ## Fase 7 — Verifica
+ ```bash
+-./scripts/devops-audit.sh
+-./scripts/audit-integration.py
+-./scripts/test-all.sh
++./scripts/test-scripts.sh        # L1/L2: contratti e invarianti degli script
++./scripts/devops-audit.sh        # L4: best practice deploy
++./scripts/audit-integration.py   # L3: configurazione
++./scripts/test-all.sh            # L5: catena reale
+ ```
+ 
+ ## Fase 8 — Baseline
+diff --git a/docs/TEST-PLAN.md b/docs/TEST-PLAN.md
+index 139bdac..e9b3f93 100644
+--- a/docs/TEST-PLAN.md
++++ b/docs/TEST-PLAN.md
+@@ -4,6 +4,7 @@
+ | Livello | Verifica | Dove | Auto |
+ |---|---|---|---|
+ | L1 Statico | sintassi, lint, segreti | CI `validate.yml` | ✅ |
++| L1b Script | contratti, invarianti sicurezza, dry-run | `test-scripts.sh` (CI) | ✅ |
+ | L2 Build | immagine + gate callback | CI `validate.yml` | ✅ |
+ | L3 Config | client puntano dove devono | `audit-integration.py` | ✅ |
+ | L4 Infra | best practice deploy | `devops-audit.sh` | ✅ |
+@@ -26,6 +27,16 @@
+ | N3 | TC-05 restore + TC-06 snapshot | L6 |
+ | N4 | CI `syntax` + `build` | L1/L2 |
+ 
++**TC-07 Invarianti di sicurezza negli script** — `test-scripts.sh` verifica nel
++*codice* che: Ollama non venga mai bindato su `0.0.0.0`, postgres non pubblichi
++porte, vLLM stia su loopback, le config siano `:ro`, `cleanup-host` faccia il
++pre-check sul gateway (ordine PSE), `create-vm --destroy` chieda conferma, e
++nessun segreto sia hardcoded. Gira su runner GitHub: nessuna dipendenza dall'host.
++
++**TC-08 Dry-run non distruttivi** — ogni script che modifica il sistema espone
++`--dry-run` e deve completarlo **anche su una macchina vuota**. Se un dry-run
++crasha, crasherebbe anche l'esecuzione reale.
++
+ ## Casi critici
+ **TC-01 Compressione** — payload JSON 400 righe; atteso `prompt_tokens` ≪ payload
+ grezzo. Fallimento probabile: callback non caricato (il gate build lo intercetta).
+diff --git a/docs/VM-AUTOMATION.md b/docs/VM-AUTOMATION.md
+new file mode 100644
+index 0000000..1350c29
+--- /dev/null
++++ b/docs/VM-AUTOMATION.md
+@@ -0,0 +1,70 @@
++# Automazione VM e LLM locale
++
++Chiude il gap tra procedura *documentata* e procedura *eseguibile* (PRD G6).
++Il razionale della scelta cloud-init è in `adr/0011-cloud-init-per-la-vm.md`.
++
++## `scripts/create-vm.sh` — VM riproducibile
++
++```bash
++./scripts/create-vm.sh --dry-run          # vedi cosa farebbe
++./scripts/create-vm.sh                    # crea con i default
++VM_NAME=llm-vm VM_IP=192.168.122.50 VM_RAM_MB=4096 ./scripts/create-vm.sh
++./scripts/create-vm.sh --destroy          # rimuove (chiede il nome per conferma)
++```
++
++Cosa fa, in ordine: verifica i prerequisiti → scarica la cloud image Debian
++(con cache) → crea il disco **qcow2 thin** (obbligatorio per gli snapshot) →
++genera cloud-init (utente + chiave SSH, docker dal repo Debian, `daemon.json`
++con log driver `local` e `live-restore`, journald dimensionato sulla VM) →
++**crea la riserva DHCP** così l'IP non cambia mai → `virt-install --import` →
++autostart → attende il provisioning e verifica docker.
++
++Prerequisiti sull'host:
++```bash
++sudo apt install -y libvirt-daemon-system virtinst cloud-image-utils qemu-utils wget
++ssh-keygen -t ed25519      # se non hai già una chiave
++```
++
++Variabili: `VM_NAME VM_IP VM_RAM_MB VM_VCPU VM_DISK_GB VM_USER SSH_KEY POOL_DIR NET IMG_URL`.
++
++> `VM-DEBIAN-INSTALL.md` resta valido come **fallback manuale** e per capire
++> cosa lo script automatizza (in particolare il passo `tasksel`, che è ciò che
++> distingue una VM da 1.5 GB da una da 4 GB).
++
++**Subito dopo la creazione**, prima di installare i servizi:
++```bash
++virsh -c qemu:///system snapshot-create-as llm-vm clean-install
++```
++
++## `scripts/setup-ollama.sh` — LLM locale configurato
++
++```bash
++./scripts/setup-ollama.sh --dry-run
++./scripts/setup-ollama.sh
++MODEL=qwen2.5-coder:7b ./scripts/setup-ollama.sh    # forza il modello
++```
++
++Applica ciò che `detect-hardware.sh` si limitava a stampare: sceglie il modello
++in base alla VRAM (con offload parziale se la RAM lo consente), scrive
++l'override systemd con **bind su virbr0 — mai `0.0.0.0`**, applica il tuning per
++VRAM stretta (`FLASH_ATTENTION`, `KV_CACHE_TYPE=q8_0`, `KEEP_ALIVE` su laptop),
++apre il firewall solo alla subnet libvirt, scarica i modelli e **verifica la
++raggiungibilità dalla VM** — non solo dall'host, che è il test che conta.
++
++Al termine stampa il blocco pronto per `services/litellm_config.yaml`.
++
++⚠️ Ollama **non ha autenticazione**: è per questo che il bind è ristretto al
++bridge libvirt. Non modificarlo in `0.0.0.0` "per comodità".
++
++## Ciclo completo da zero
++```bash
++./scripts/detect-hardware.sh --emit-config
++./scripts/create-vm.sh
++virsh -c qemu:///system snapshot-create-as llm-vm clean-install
++scp -r services/ $USER@192.168.122.50:~/llm-services/
++# ...compila .env nella VM, docker compose up -d...
++./scripts/deploy-all.sh 2      # forward host→VM
++./scripts/setup-ollama.sh
++./scripts/test-all.sh
++```
++Oppure, guidato: `./scripts/deploy-all.sh` (le fasi 1 e 6 invocano questi script).
+diff --git a/docs/adr/0011-cloud-init-per-la-vm.md b/docs/adr/0011-cloud-init-per-la-vm.md
+new file mode 100644
+index 0000000..5c9436e
+--- /dev/null
++++ b/docs/adr/0011-cloud-init-per-la-vm.md
+@@ -0,0 +1,35 @@
++# 0011 — cloud-init invece di installazione manuale per la VM
++
++- **Status**: Accepted
++- **Data**: 2026-08-21
++
++## Contesto
++`VM-DEBIAN-INSTALL.md` documentava una procedura **manuale** in virt-manager
++(ISO netinstall, tasksel, docker a mano). Il PRD pone come obiettivo G6
++«deploy riproducibile senza conoscenza tacita»: una procedura che dipende dal
++ricordarsi di deselezionare i task in `tasksel` **viola quell'obiettivo**.
++
++## Alternative considerate
++| Opzione | Riproducibile | Attrito | Note |
++|---|---|---|---|
++| Installazione manuale (ISO) | ❌ dipende dall'operatore | alto | stato precedente |
++| Preseed Debian | ✅ | medio | sintassi ostica, debug difficile |
++| **Cloud image + cloud-init** | ✅ | basso | standard de facto; immagine già minimale |
++| Packer + template | ✅ | alto | sovradimensionato per 1 VM |
++
++## Decisione
++`scripts/create-vm.sh` usa la **cloud image Debian genericcloud** con
++**cloud-init**: utente e chiave SSH, docker dal repo ufficiale, hardening
++(daemon.json, journald dimensionato), riserva DHCP automatica, qcow2, autostart.
++
++## Conseguenze
++**Positive:** VM identica a ogni ricreazione; nessun passo dimenticabile;
++l'IP è stabile per costruzione (riserva DHCP creata dallo script); `--destroy`
++rende il ciclo ripetibile; `VM-DEBIAN-INSTALL.md` resta come *fallback manuale*
++e documentazione del razionale.
++**Negative / costi accettati:** dipendenza da `cloud-image-utils` e `virtinst`;
++l'URL dell'immagine va aggiornato al cambio di stable Debian; lo script non
++verifica la firma GPG dell'immagine (solo HTTPS) — accettabile per una VM
++interna, da irrobustire se un giorno serve una catena di fiducia completa.
++**Da rivedere se:** le VM diventano più d'una e con ruoli diversi → allora
++Packer o Terraform/libvirt hanno senso.
+diff --git a/docs/adr/0012-repo-separato-per-multi-tenant.md b/docs/adr/0012-repo-separato-per-multi-tenant.md
+new file mode 100644
+index 0000000..66e1071
+--- /dev/null
++++ b/docs/adr/0012-repo-separato-per-multi-tenant.md
+@@ -0,0 +1,49 @@
++# 0012 — Repo separato per il servizio LLM multi-tenant BIOME
++
++- **Status**: Accepted
++- **Data**: 2026-08-21
++
++## Contesto
++Il servizio LLM per i ricercatori BIOME (accesso da RStudio Server, in futuro
++dal cluster Kubernetes) richiede multi-tenancy, quote per utente, audit e una
++aspettativa di servizio verso terzi. Questo repo dichiara nel PRD §3
++**«❌ Multi-tenancy — un utente»** come non-goal esplicito.
++
++## Alternative considerate
++| Opzione | Pro | Contro |
++|---|---|---|
++| Aggiungere qui il multi-tenant | nessuna duplicazione; un solo CI | **contraddice un non-goal del PRD**; mescola infrastruttura personale e istituzionale; ogni modifica al setup personale fa girare la CI del servizio condiviso |
++| Monorepo con due cartelle e due PRD | separazione logica | governance ambigua: chi può mergiare cosa? il repo contiene `CURRENT-STATE.md` con la mappa dell'host personale |
++| **Repo separato** | governance, lifecycle, visibilità e CI indipendenti | duplicazione controllata di 2-3 pattern |
++| Repo separato + submodule condiviso | DRY | per 2 repo a questa scala il submodule costa più di quanto rende (single maintainer) |
++
++## Decisione
++Il servizio multi-tenant vive in un **repository separato** (proposto:
++`BiomeLLMService`), con PRD, ADR, CI e ciclo di rilascio propri.
++**Nessun submodule condiviso**: si accetta la duplicazione dei pochi pattern
++comuni (mTLS step-ca, struttura del compose, forma del config LiteLLM).
++
++Confine netto:
++| | `AiAgentInfrastructure` (questo) | `BiomeLLMService` (nuovo) |
++|---|---|---|
++| Utenti | 1 (il maintainer) | N ricercatori, poi utenti k8s |
++| Contiene | dettagli host personali (`/home/jfs`, IP interni, `CURRENT-STATE.md`) | solo configurazione istituzionale |
++| SLA | nessuno | implicito verso i colleghi |
++| Compliance | — | GDPR, policy di ateneo, audit |
++| Visibilità | privata consigliata | da decidere col gruppo |
++
++`services-biome/` **resta qui** finché è a uso singolo (il maintainer che chiama
++vLLM dal proprio gateway). Migra nel nuovo repo quando si aggiunge il primo
++tenant diverso dal maintainer: è quello il momento in cui cambia la natura del
++servizio, non prima.
++
++## Conseguenze
++**Positive:** i non-goal restano veri; il repo personale può restare privato
++mentre quello istituzionale è condivisibile col gruppo; la CI del servizio non
++dipende dalle modifiche al laptop; possibilità di dare accesso a colleghi su un
++solo repo.
++**Negative / costi accettati:** due repo da mantenere; duplicazione di 2-3
++pattern (accettata: sincronizzarli a mano una volta l'anno costa meno di un
++submodule); un cambiamento che tocca entrambi richiede due PR.
++**Da rivedere se:** i pattern duplicati diventano più di 3-4, o divergono in
++modo dannoso → allora una libreria condivisa versionata (non un submodule).
+diff --git a/docs/adr/README.md b/docs/adr/README.md
+index 4e6e9bb..b466ab7 100644
+--- a/docs/adr/README.md
++++ b/docs/adr/README.md
+@@ -15,5 +15,7 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
+ | [0008](0008-ollama-su-host.md) | Ollama su host, no passthrough | Accepted |
+ | [0009](0009-mtls-per-biome.md) | mTLS M2M, Keycloak per umani | Accepted |
+ | [0010](0010-ci-non-cd.md) | CI di validazione, nessun CD | Accepted |
++| [0011](0011-cloud-init-per-la-vm.md) | cloud-init invece di installazione manuale | Accepted |
++| [0012](0012-repo-separato-per-multi-tenant.md) | Repo separato per il multi-tenant BIOME | Accepted |
+ 
+ Template: `_template.md`. Regole in `CONTRIBUTING.md`.
+diff --git a/scripts/test-scripts.sh b/scripts/test-scripts.sh
+new file mode 100755
+index 0000000..c65577b
+--- /dev/null
++++ b/scripts/test-scripts.sh
+@@ -0,0 +1,81 @@
++#!/usr/bin/env bash
++# ============================================================
++#  test-scripts.sh -- test degli SCRIPT stessi (L1/L2 del test plan).
++#  Non tocca il sistema: verifica sintassi, contratti, idempotenza
++#  dei dry-run e le invarianti di sicurezza del codice.
++#  Gira anche in CI su runner GitHub (nessuna dipendenza dall'host).
++# ============================================================
++set -uo pipefail
++cd "$(dirname "$0")/.." || exit 1
++P=0;F=0
++ok(){ echo -e "  \033[32m✓\033[0m $1"; P=$((P+1)); }
++ko(){ echo -e "  \033[31m✗\033[0m $1"; [ -n "${2:-}" ] && echo -e "     \033[2m$2\033[0m"; F=$((F+1)); }
++sec(){ echo -e "\n\033[36m━━ $1 ━━\033[0m"; }
++
++sec "1. Sintassi ed eseguibilità"
++for s in scripts/*.sh; do
++  bash -n "$s" && ok "sintassi $(basename "$s")" || ko "sintassi $(basename "$s")"
++  [ -x "$s" ] && ok "eseguibile $(basename "$s")" || ko "$(basename "$s") non eseguibile" "chmod +x $s"
++done
++python3 -m py_compile scripts/*.py && ok "python compila" || ko "python non compila"
++
++sec "2. Contratto: ogni script supporta --dry-run o è read-only"
++for s in create-vm.sh setup-ollama.sh cleanup-host.sh deploy-all.sh; do
++  grep -q -- '--dry-run' "scripts/$s" && ok "$s espone --dry-run" \
++    || ko "$s senza --dry-run" "gli script che modificano il sistema devono poterlo simulare"
++done
++for s in detect-hardware.sh devops-audit.sh test-all.sh; do
++  grep -qE 'sudo (rm|systemctl (stop|disable)|mv)' "scripts/$s" \
++    && ko "$s dichiarato read-only ma modifica il sistema" || ok "$s è read-only"
++done
++
++sec "3. Invarianti di sicurezza nel codice"
++# Ollama non deve mai essere bindato su tutte le interfacce
++grep -q 'OLLAMA_HOST=.*0\.0\.0\.0' scripts/setup-ollama.sh \
++  && ko "setup-ollama binda Ollama su 0.0.0.0" "Ollama non ha auth: solo virbr0" \
++  || ok "Ollama non viene bindato su 0.0.0.0"
++# nessun segreto hardcoded
++grep -rInE '(sk-ant-[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-z0-9]{20,})' scripts/ services/ services-biome/ clients/ 2>/dev/null \
++  | grep -viE 'CHANGEME|example|placeholder|<' \
++  && ko "segreto hardcoded" || ok "nessun segreto hardcoded"
++# cleanup-host deve avere il pre-check sul gateway (ordine PSE)
++grep -q 'health/liveliness' scripts/cleanup-host.sh \
++  && ok "cleanup-host verifica il gateway prima di pulire" \
++  || ko "cleanup-host senza pre-check" "ordine PSE: VM su PRIMA della pulizia"
++# create-vm --destroy deve chiedere conferma esplicita
++grep -A3 'DESTROY.*=.*1' scripts/create-vm.sh | grep -q 'read -rp' \
++  && ok "create-vm --destroy richiede conferma" || ko "--destroy senza conferma"
++
++sec "4. Compose: validi e senza esposizioni indebite"
++for d in services services-biome; do
++  python3 - "$d/docker-compose.yml" <<'PY' && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
++import yaml,sys; yaml.safe_load(open(sys.argv[1]))
++PY
++done
++# postgres non deve pubblicare porte
++python3 - <<'PY' && ok "postgres non esposto su porta host" || ko "postgres esposto"
++import yaml,sys
++c=yaml.safe_load(open("services/docker-compose.yml"))
++sys.exit(1 if c["services"]["db"].get("ports") else 0)
++PY
++# vLLM deve stare su loopback
++grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
++  && ok "vLLM su loopback (solo nginx lo espone)" || ko "vLLM non su loopback"
++# config montate read-only
++grep -q ':ro' services/docker-compose.yml && ok "config montata :ro" || ko "config non :ro"
++
++sec "5. Coerenza documentazione"
++for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
++  [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"
++done
++for f in docs/adr/[0-9]*.md; do
++  grep -q '^- \*\*Status\*\*' "$f" || ko "$(basename "$f") senza Status"
++done
++# ogni script deve essere citato almeno una volta nei doc
++for s in create-vm setup-ollama restore-test detect-hardware test-all deploy-all; do
++  grep -rq "$s" docs/ README.md && ok "$s documentato" || ko "$s non citato nella documentazione"
++done
++
++echo -e "\n\033[36m━━ Esito ━━\033[0m\n  \033[32m✓ $P\033[0m   \033[31m✗ $F\033[0m"
++[ "$F" -gt 0 ] && exit 1
++echo -e "  \033[32mTutti i test superati.\033[0m"
+-- 
+2.43.0
+
+
+From dd2f7f78b2856da7c7e0d2d1ad40fb0363661abe Mon Sep 17 00:00:00 2001
+From: Gianfranco Sammartano <gsamuele78@users.noreply.github.com>
+Date: Fri, 21 Aug 2026 09:33:05 +0000
+Subject: [PATCH 3/3] docs(agents): AGENTS.md come contesto di progetto per gli
+ agenti AI
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Chiude un buco della MEMORY-POLICY: dichiarava una memoria di progetto
+canonica che non era mai stata creata.
+
+- AGENTS.md: letto automaticamente da opencode. Contiene topologia,
+  ordine di lettura (PRD non-goal -> ADR -> test plan), le 10 invarianti
+  verificate dalla CI, il vincolo dominante (<30 min/mese), i comandi,
+  le convenzioni, le TRAPPOLE NOTE in cui siamo gia' cascati, il debito
+  riconosciuto e lo stile di collaborazione atteso.
+- CLAUDE.md: rimanda ad AGENTS.md invece di duplicarlo — una sola verita'
+  da mantenere, coerente con ADR-0007.
+- MEMORY-POLICY e audit-integration.py: AGENTS.md sostituisce CONTEXT.md
+  come memoria di progetto.
+- test-scripts.sh: verifica presenza e allineamento dei due file (59 test).
+
+Effetto pratico: una sessione Claude Code o opencode nel repo riparte con
+tutto il contesto, senza doverlo rispiegare.
+
+Verificato: syntax PASS, 59/59 test, dry-run PASS, shellcheck PASS,
+secrets PASS, devops-audit 21 PASS 0 FAIL.
+---
+ AGENTS.md                    | 123 +++++++++++++++++++++++++++++++++++
+ CLAUDE.md                    |  15 +++++
+ README.md                    |   5 ++
+ docs/MEMORY-POLICY.md        |   2 +-
+ scripts/audit-integration.py |   6 +-
+ scripts/test-scripts.sh      |   2 +
+ 6 files changed, 149 insertions(+), 4 deletions(-)
+ create mode 100644 AGENTS.md
+ create mode 100644 CLAUDE.md
+
+diff --git a/AGENTS.md b/AGENTS.md
+new file mode 100644
+index 0000000..2be9320
+--- /dev/null
++++ b/AGENTS.md
+@@ -0,0 +1,123 @@
++# AGENTS.md — contesto di progetto per agenti AI
++
++> Letto automaticamente da **opencode** (`AGENTS.md`) e da **Claude Code**
++> (via `CLAUDE.md`, che punta a questo file). Serve a far ripartire una
++> sessione senza rispiegare il progetto da capo.
++>
++> Memoria canonica di progetto (vedi `docs/MEMORY-POLICY.md`):
++> **questo file + `docs/adr/`**. Le decisioni stanno negli ADR, non qui.
++
++## Cos'è questo repo
++
++Infrastruttura per agenti AI a **maintainer singolo**: un gateway LiteLLM
++(con compressione Headroom come callback) in VM KVM locale, agenti sull'host,
++lane per dati sensibili, LLM locale e self-hosted BIOME.
++
++```
++HOST ermes                                   VM KVM
++Claude Code ──abbonamento──► Anthropic       ┌────────────────────────┐
++opencode / OpenChamber ─┐                    │ litellm :4000          │
++Codex ──────────────────┼─127.0.0.1:4000────►│  └─[headroom callback] │
++Serena + graphify       │      (socat)       │ postgres (rete interna)│
++Ollama :11434 (virbr0) ─┘                    └────────────────────────┘
++                  └─ VPN ateneo ─► BIOME L40S (vLLM, mTLS)
++```
++
++## Prima di proporre modifiche — leggi in quest'ordine
++
++1. `docs/PRD.md` — **soprattutto i non-goal (§3)**. Molte "buone idee"
++   contraddicono un non-goal esplicito: in quel caso la risposta è no, o
++   serve un nuovo PRD.
++2. `docs/adr/README.md` — le 12 decisioni già prese e il loro perché.
++3. `docs/TEST-PLAN.md` — cosa deve continuare a passare.
++
++## Invarianti che NON vanno violate
++
++Sono verificate automaticamente da `scripts/test-scripts.sh`: se le rompi, la
++CI fallisce.
++
++| # | Invariante | Perché |
++|---|---|---|
++| 1 | **Un solo gateway**: nessun client parla direttamente a un provider | ADR-0001 |
++| 2 | Compressione = **callback** dentro LiteLLM, non un proxy davanti | ADR-0003 |
++| 3 | Ollama bindato **solo su virbr0**, mai `0.0.0.0` | non ha autenticazione |
++| 4 | postgres **non pubblica porte**; vLLM **su loopback** | least exposure |
++| 5 | Config montate `:ro`; solo DB e workspace scrivibili | immutabilità |
++| 6 | **Nessun segreto** nei file versionati — solo `os.environ/` e file 600 | SECURITY.md |
++| 7 | **Un tool per layer** (Serena · graphify · mattpocock · AgentShield) | ADR-0006 |
++| 8 | **Una memoria per livello** | ADR-0007 |
++| 9 | Ogni script che modifica il sistema espone `--dry-run` | TC-08 |
++| 10 | `cleanup-host` verifica il gateway **prima** di pulire | ordine PSE |
++
++## Vincolo dominante
++
++**Maintainer singolo, < 30 min/mese di manutenzione.** Ogni componente
++aggiunto deve giustificare il proprio costo di manutenzione. In caso di dubbio
++tra "più completo" e "più mantenibile", vince **mantenibile**.
++
++Corollario: non aggiungere un tool se ne esiste già uno per quel layer. Non
++aggiungere un sistema di memoria. Non introdurre dipendenze che richiedono
++attenzione continua.
++
++## Comandi
++
++```bash
++# verifica (in ordine di costo crescente)
++./scripts/test-scripts.sh        # L1b: contratti e invarianti — gira ovunque
++./scripts/devops-audit.sh        # L4: best practice deploy
++./scripts/audit-integration.py   # L3: configurazione dei client
++./scripts/test-all.sh            # L5: catena reale (serve il gateway attivo)
++
++# deploy
++./scripts/deploy-all.sh --dry-run     # 8 fasi con checkpoint
++./scripts/detect-hardware.sh --emit-config
++./scripts/create-vm.sh                # VM riproducibile (cloud-init)
++./scripts/setup-ollama.sh             # LLM locale configurato e verificato
++./scripts/restore-test.sh             # TC-05: il backup è restorabile?
++```
++
++## Convenzioni
++
++- **Commit**: `<tipo>(<ambito>): <descrizione>` — `feat` `fix` `docs`
++  `refactor` `test` `chore` `security`.
++- **ADR immutabili**: una decisione non si modifica; se ne scrive una nuova che
++  la **supersede** (esempio: 0002 → 0003). Sempre con alternative scartate e
++  conseguenze negative. Aggiorna `docs/adr/README.md` (la CI lo verifica).
++- **Definition of Done**: CI verde, audit senza regressioni, documentazione
++  aggiornata, e — se cambia l'architettura — un ADR.
++- Dettagli in `CONTRIBUTING.md`.
++
++## Trappole note (ci siamo già cascati)
++
++| Trappola | Sintomo | Rimedio |
++|---|---|---|
++| `headroom wrap` riscrive i config dei client | i tool tornano a `:8787` | `headroom unwrap`, poi `audit-integration.py` |
++| Alias MCP lunghi (`github.com/...`) | "Model tried to call unavailable tool" | alias corti: `reason`, `mem`, `fs`, `ctx7` |
++| `ANTHROPIC_API_KEY` residua nell'ambiente | fatturazione a consumo **silenziosa** invece dell'abbonamento | `unset`; verifica con `/status` |
++| IP della VM cambia | gateway "giù" senza motivo | riserva DHCP (`VM-KVM-GUIDE.md`) |
++| `shm_size` mancante su vLLM | crash oscuro all'avvio | `shm_size: 16gb` |
++| `proxy_buffering` attivo in nginx | streaming che arriva in blocco | `proxy_buffering off` |
++| File sourced senza shebang | shellcheck SC2148 | `# shellcheck shell=bash` |
++
++## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
++
++1. Immagine LiteLLM su tag mobile `main-stable` → pinnare un digest sha256
++2. Nessun alerting (accettabile per uso personale)
++3. Credenziali storiche esposte in un file 664 → **ruotarle**
++4. Nessuno scan CVE delle immagini
++
++Elenco completo e razionale in `docs/DEVOPS-AUDIT.md`.
++
++## Fuori scope in questo repo
++
++Multi-tenancy, alta disponibilità, CD automatico, fine-tuning. Il servizio LLM
++multi-tenant per i ricercatori BIOME vive in un **repo separato** — vedi
++`docs/adr/0012-repo-separato-per-multi-tenant.md`.
++
++## Stile di collaborazione atteso
++
++- **Onesto, non ottimista**: i limiti si documentano, non si nascondono.
++- Prima di una risposta complessa: elenca cosa manca e le assunzioni che fai.
++- Per le decisioni architetturali: contesto → alternative → decisione →
++  conseguenze (incluse quelle negative).
++- Preferisci FOSS con licenze permissive (MIT/Apache-2.0/GPL).
+diff --git a/CLAUDE.md b/CLAUDE.md
+new file mode 100644
+index 0000000..e48dea2
+--- /dev/null
++++ b/CLAUDE.md
+@@ -0,0 +1,15 @@
++# CLAUDE.md
++
++Il contesto di progetto è in **[AGENTS.md](AGENTS.md)** — file unico condiviso
++con opencode e gli altri agenti, così non esistono due verità da mantenere
++allineate (vedi `docs/MEMORY-POLICY.md`).
++
++**Leggi `AGENTS.md` prima di proporre modifiche.** In particolare:
++- i **non-goal** in `docs/PRD.md` §3
++- le **invarianti** (verificate da `scripts/test-scripts.sh`)
++- le **trappole note**, in cui siamo già cascati
++
++Verifica rapida prima di ogni commit:
++```bash
++./scripts/test-scripts.sh && ./scripts/devops-audit.sh
++```
+diff --git a/README.md b/README.md
+index 291592e..e441b05 100644
+--- a/README.md
++++ b/README.md
+@@ -24,8 +24,13 @@ per dati sensibili, LLM locale e self-hosted BIOME.
+ ./scripts/test-all.sh                        # verifica tutto
+ ```
+ 
++> **Lavori con un agente AI su questo repo?** Il contesto sta in
++> [`AGENTS.md`](AGENTS.md) (letto da opencode; `CLAUDE.md` vi rimanda).
++> Contiene invarianti, trappole note, comandi e debito riconosciuto.
++
+ ## Struttura
+ ```
++├── AGENTS.md                 ★ contesto per agenti AI (+ CLAUDE.md che vi rimanda)
+ ├── docs/
+ │   ├── PRD.md                requisiti, scope, non-goals, accettazione
+ │   ├── adr/                  12 Architecture Decision Records
+diff --git a/docs/MEMORY-POLICY.md b/docs/MEMORY-POLICY.md
+index b00fc8f..61c4b9c 100644
+--- a/docs/MEMORY-POLICY.md
++++ b/docs/MEMORY-POLICY.md
+@@ -2,7 +2,7 @@
+ 
+ | Livello | Canonico | Altri |
+ |---|---|---|
+-| Progetto (decisioni, glossario) | `CONTEXT.md` + `docs/adr/` (git) | — |
++| Progetto (decisioni, glossario) | **`AGENTS.md`** + `docs/adr/` (git) | `CLAUDE.md` vi rimanda: un solo file |
+ | Struttura del codice | graphify (`graph.json`) | — |
+ | Cross-sessione personale | **1** memory MCP | mem0: installato ma INERTE (verificato) |
+ | Simboli live | Serena semantic | memory Serena **disabilitata** |
+diff --git a/scripts/audit-integration.py b/scripts/audit-integration.py
+index eb1eebc..41a84c2 100755
+--- a/scripts/audit-integration.py
++++ b/scripts/audit-integration.py
+@@ -71,9 +71,9 @@ if oc:
+         off=sp.exists() and "write_memory" in sp.read_text(errors="ignore")
+         L("PASS" if off else "WARN","Serena memory disabilitata" if off else "Serena memory NON esclusa",
+           "" if off else "scrivi .serena/project.yml (MEMORY-POLICY.md)")
+-ctx=Path.cwd()/"CONTEXT.md"
+-L("PASS" if ctx.exists() else "INFO",f"memory progetto: {'CONTEXT.md' if ctx.exists() else 'assente'}",
+-  "" if ctx.exists() else "creala con /grill-with-docs")
++ctx=Path.cwd()/"AGENTS.md"
++L("PASS" if ctx.exists() else "INFO",f"memory progetto: {'AGENTS.md' if ctx.exists() else 'assente'}",
++  "" if ctx.exists() else "AGENTS.md e' il contesto letto dagli agenti")
+ L("PASS" if len(ms)<=1 else "FAIL",f"memory cross-sessione: {len(ms)} ({ms or 'nessuna'})",
+   "" if len(ms)<=1 else "tienine UNA sola")
+ 
+diff --git a/scripts/test-scripts.sh b/scripts/test-scripts.sh
+index c65577b..dc165ba 100755
+--- a/scripts/test-scripts.sh
++++ b/scripts/test-scripts.sh
+@@ -71,6 +71,8 @@ done
+ for f in docs/adr/[0-9]*.md; do
+   grep -q '^- \*\*Status\*\*' "$f" || ko "$(basename "$f") senza Status"
+ done
++[ -f AGENTS.md ] && ok "AGENTS.md presente (contesto per gli agenti)" || ko "AGENTS.md mancante"
++[ -f CLAUDE.md ] && grep -q AGENTS.md CLAUDE.md && ok "CLAUDE.md rimanda ad AGENTS.md (una sola verita')" || ko "CLAUDE.md assente o non allineato"
+ # ogni script deve essere citato almeno una volta nei doc
+ for s in create-vm setup-ollama restore-test detect-hardware test-all deploy-all; do
+   grep -rq "$s" docs/ README.md && ok "$s documentato" || ko "$s non citato nella documentazione"
+-- 
+2.43.0
+
