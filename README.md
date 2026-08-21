@@ -17,6 +17,8 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 ## Quickstart
 ```bash
 ./scripts/detect-hardware.sh --emit-config   # cosa regge la macchina
+./scripts/create-vm.sh                       # crea la VM (cloud-init, riproducibile)
+./scripts/setup-ollama.sh                    # LLM locale, configurato e verificato
 ./scripts/deploy-all.sh --dry-run            # vedi le 8 fasi
 ./scripts/deploy-all.sh                      # esegui con checkpoint
 ./scripts/test-all.sh                        # verifica tutto
@@ -42,9 +44,10 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 │   ├── DEVOPS-AUDIT.md       best practice + debito riconosciuto
 │   └── CURRENT-STATE.md      stato verificato dell'host
 ├── services/                 gira nella VM (compose + Dockerfile + config)
+├── services-biome/           gira sul server BIOME (vLLM + nginx mTLS + stunnel)
 ├── clients/                  opencode.jsonc, claude, codex, shell-env
 ├── systemd/                  forward VM + note di rimozione
-├── scripts/                  deploy, audit, test, backup, restore, detect
+├── scripts/                  create-vm, setup-ollama, deploy, audit, test, backup, restore
 └── .github/workflows/        validate (CI) + functional (self-hosted)
 ```
 

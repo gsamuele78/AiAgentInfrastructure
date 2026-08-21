@@ -20,9 +20,11 @@ echo "╚═══════════════════════�
 if ph 0; then say "FASE 0 — Rilevamento hardware"
 run "./detect-hardware.sh"; ask "Continuare?" || exit 0; fi
 
-if ph 1; then say "FASE 1 — VM: servizi"
+if ph 1; then say "FASE 1 — VM: creazione + servizi"
+ask "Creare la VM ora con create-vm.sh (cloud-init, automatico)?" \
+  && run "./create-vm.sh" || warn "creazione VM saltata (manuale: docs/VM-DEBIAN-INSTALL.md)"
 cat <<'X'
-  Nella VM (creala con docs/VM-DEBIAN-INSTALL.md):
+  Poi, deploy dei servizi nella VM:
     scp -r services/ jfs@<VM_IP>:~/llm-services/
     ssh jfs@<VM_IP>; cd ~/llm-services
     cp .env.example .env && chmod 600 .env && $EDITOR .env
@@ -66,8 +68,8 @@ ask "Fatto?" && ok "dual-auth pronta" || warn "da completare"; fi
 if ph 6; then say "FASE 6 — LLM locale (opzionale)"
 if command -v nvidia-smi >/dev/null 2>&1; then
   run "./detect-hardware.sh --emit-config"
-  ask "Installare Ollama?" && { run "curl -fsSL https://ollama.com/install.sh | sh"
-    warn "applica i frammenti sopra (systemctl edit ollama.service)"; } || warn saltata
+  ask "Installare e configurare Ollama ora?" \
+    && run "./setup-ollama.sh" || warn saltata
 else warn "nessuna GPU: salto"; fi; fi
 
 if ph 7; then say "FASE 7 — Verifica"
