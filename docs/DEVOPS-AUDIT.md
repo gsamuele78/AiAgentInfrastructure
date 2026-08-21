@@ -2,10 +2,17 @@
 
 Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 
+> **Stato reale: lo stack non è mai stato deployato.** Il gateway non è mai
+> stato avviato, quindi ogni ✅ qui sotto significa «il repo lo prevede e la
+> verifica statica lo conferma», mai «l'ho visto funzionare». Le righe che
+> riguardano l'esercizio (restore testato, metriche, CI funzionale) sono
+> marcate di conseguenza. Un audit che confonde le due cose è esattamente il
+> tipo di documento che questo file esiste per evitare.
+
 | Area | Stato | Note |
 |---|---|---|
 | IaC / config dichiarative | ✅ | compose, YAML, unit file, tutti in repo |
-| Build riproducibile | ⚠️ | Dockerfile + gate `import HeadroomCallback`. **La build non è mai passata in CI** fino al 2026-08-21: l'immagine upstream (Wolfi + venv `uv`) non ha `pip`. Corretto; da confermare col primo run verde. |
+| Build riproducibile | ⚠️ | Dockerfile + gate `import HeadroomCallback`. **La build non è mai passata in CI** fino al 2026-08-21: l'immagine upstream (Wolfi + venv `uv`) non ha `pip`. Corretto; da confermare col primo run verde. Nessuna immagine è mai stata costruita né deployata. |
 | Pin versioni | ⚠️ | `main-stable` è mobile → **pinna un digest sha256** |
 | Config immutabile | ✅ | `litellm_config.yaml:ro` |
 | Segreti fuori dai config | ✅ | solo `os.environ/` |
@@ -19,7 +26,7 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 | Metriche | ⚠️ | Prometheus disponibile, non attivo |
 | Alerting | ❌ | **debito reale** se il gateway diventa critico |
 | Backup DB | ✅ | `backup-db.sh` + retention 14 |
-| **Restore testato** | ❌ | `restore-test.sh` esiste, ma il registro in `TEST-PLAN.md` è **vuoto**: mai eseguito. La modalità locale era rotta (compose cercato nella cwd) — corretta. |
+| **Restore testato** | ❌ | `restore-test.sh` esiste e la modalità locale era rotta (compose cercato nella cwd) — corretta. Non eseguibile finché non c'è un DB: **non c'è ancora nulla da restorare**. |
 | Snapshot VM | ✅ | `virsh snapshot-create-as` |
 | ADR / decisioni | ✅ | `docs/adr/` 13 ADR, con superseded (0002→0003, 0007→0013) |
 | PRD / requisiti | ✅ | `docs/PRD.md` |
@@ -36,16 +43,20 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 3. **Rotazione credenziali** → le vecchie erano in un file 664: rigenerale.
    **Non risulta fatto**: nessuna traccia nel repo.
 4. **Nessuno scan CVE** → valuta `trivy` nella CI
-5. **`sync_openrouter.py` non esiste** → ADR-0004 decide la riconciliazione dei
+5. **Nessun deploy** → il primo `create-vm.sh` + `docker compose up -d` è anche
+   il primo test reale di tutta la catena. Aspettati che qualcosa non torni: i
+   test statici coprono i contratti, non l'esercizio.
+6. **`sync_openrouter.py` non esiste** → ADR-0004 decide la riconciliazione dei
    modelli via `/model/new` + `/model/delete`, ma lo script non è mai stato
    scritto. F8 del PRD non è implementato e il suo test (TEST-PLAN) non è
    eseguibile. Oggi vale solo il wildcard `openrouter/*`, con i limiti che
    l'ADR stesso elenca (dropdown vuoto, niente pricing).
-6. **Lane locale (F5) e BIOME (F6) non sono nel config versionato** →
-   `local-fast`/`local-good` e `biome-coder` vivono solo in `GPU-LOCAL-LLM.md`
-   e `BIOME-L40S.md`, più l'output da incollare a mano di `setup-ollama.sh`.
-   Chi fa deploy da zero seguendo il repo NON ottiene quelle lane.
-7. **Test funzionali non bloccanti** → `functional.yml` ha
+7. ~~Lane locale (F5) e BIOME (F6) fuori dal config versionato~~ → **chiuso**:
+   `local-fast`, `local-good` e `biome-coder` sono in
+   `services/litellm_config.yaml`. Restano le uniche lane che dipendono da
+   servizi fuori dalla VM (Ollama sull'host, BIOME dietro VPN): se non ci sono,
+   rispondono errore.
+8. **Test funzionali non bloccanti** → `functional.yml` ha
    `continue-on-error: true` sul job: TC-01, TC-02, TC-04 e TC-05 girano ma non
    possono fallire. Cambiarlo tocca una conseguenza dichiarata in ADR-0010 →
    serve un nuovo ADR, non una modifica al volo.

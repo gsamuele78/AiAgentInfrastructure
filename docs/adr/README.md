@@ -18,5 +18,6 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
 | [0011](0011-cloud-init-per-la-vm.md) | cloud-init invece di installazione manuale | Accepted |
 | [0012](0012-repo-separato-per-multi-tenant.md) | Repo separato per il multi-tenant BIOME | Accepted |
 | [0013](0013-agents-md-come-memoria-di-progetto.md) | AGENTS.md come memoria di progetto | Accepted |
+| [0014](0014-headroom-standalone-per-la-lane-abbonamento.md) | Headroom standalone sulla sola lane abbonamento | Accepted — **eccezione** a 0001/0003 |
 
 Template: `_template.md`. Regole in `CONTRIBUTING.md`.

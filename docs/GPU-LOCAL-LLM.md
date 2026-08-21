@@ -56,8 +56,8 @@ esporrebbe alla LAN.
 
 ## Verifica e config
 ```bash
-ssh jfs@192.168.122.50 'curl -s http://192.168.122.1:11434/api/tags'
-ssh jfs@192.168.122.50 'cd ~/llm-services && docker compose exec litellm \
+ssh $VM_USER@192.168.122.50 'curl -s http://192.168.122.1:11434/api/tags'
+ssh $VM_USER@192.168.122.50 'cd ~/llm-services && docker compose exec litellm \
   curl -s http://192.168.122.1:11434/api/tags'
 ```
 ```yaml

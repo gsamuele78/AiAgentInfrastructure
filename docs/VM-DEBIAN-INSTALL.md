@@ -38,7 +38,7 @@ Partizionamento: guidato, tutto in una partizione. Niente LVM/cifratura.
 ```bash
 su -
 apt update && apt install -y sudo ca-certificates curl qemu-guest-agent
-usermod -aG sudo jfs && systemctl enable --now qemu-guest-agent
+usermod -aG sudo "$VM_USER" && systemctl enable --now qemu-guest-agent
 
 # Docker: repo ufficiale DEBIAN (non ubuntu!)
 install -m 0755 -d /etc/apt/keyrings
@@ -48,7 +48,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.
 https://download.docker.com/linux/debian $(. /etc/os-release && echo $VERSION_CODENAME) stable" \
   > /etc/apt/sources.list.d/docker.list
 apt update && apt install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-usermod -aG docker jfs
+usermod -aG docker "$VM_USER"
 # Alternativa: apt install -y docker.io docker-compose-v2
 
 apt-get --purge autoremove -y && apt-get clean

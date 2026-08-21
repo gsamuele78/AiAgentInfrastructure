@@ -78,6 +78,17 @@ if grep -q 'local-small' scripts/*.sh docs/*.md --exclude=test-scripts.sh 2>/dev
   ko "lane locale: 'local-small' convive con 'local-fast'/'local-good'" "un nome solo"
 else ok "lane locale: nomi coerenti (local-fast / local-good)"; fi
 
+# Repo PUBBLICO: nessun identificatore interno nei file versionati.
+# La subnet 192.168.122.0/24 e' esclusa apposta: e' il default di libvirt,
+# uguale ovunque, e gli script la usano davvero (docs/GITHUB-SETUP.md §2).
+# Copre utenti, nomi macchina e domini interni. NON gli IP: distinguerne uno
+# interno da 0.0.0.0 o dalla subnet libvirt richiederebbe un pattern fragile --
+# per quelli vale la regola scritta in GITHUB-SETUP.md, non un grep.
+LEAKS=$(grep -rInE '(@?\bjfs\b|\bermes\b|\.unibo\.it)' \\
+  --exclude-dir=.git --exclude=test-scripts.sh . 2>/dev/null | grep -viE 'permess|CHANGEME|<dominio' || true)
+[ -z "$LEAKS" ] && ok "nessun identificatore interno versionato (repo pubblico)" \
+  || ko "identificatore interno nei file versionati" "$(echo "$LEAKS" | head -3)"
+
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
 # Un controllo che fallisce per motivi ambientali e' peggio di un controllo assente.
@@ -120,6 +131,18 @@ grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
   && ok "vLLM su loopback (solo nginx lo espone)" || ko "vLLM non su loopback"
 # config montate read-only
 grep -q ':ro' services/docker-compose.yml && ok "config montata :ro" || ko "config non :ro"
+
+# Repo pubblico + runner self-hosted: un trigger `pull_request` su un workflow
+# self-hosted = esecuzione di codice arbitrario sull'host (GITHUB-SETUP.md §4).
+for wf in .github/workflows/*.yml; do
+  grep -q 'self-hosted' "$wf" || continue
+  if grep -qE '^\s+pull_request(_target)?\s*:' "$wf"; then
+    ko "$(basename "$wf"): trigger pull_request su runner self-hosted" \
+       "chiunque apra una PR eseguirebbe codice sull'host"
+  else
+    ok "$(basename "$wf"): self-hosted non innescabile da una PR"
+  fi
+done
 
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do

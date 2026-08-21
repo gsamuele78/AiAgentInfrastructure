@@ -1,6 +1,13 @@
-# STATO VERIFICATO dell'host `ermes` (base della migrazione)
+# STATO VERIFICATO dell'host di lavoro (base della migrazione)
 
 Non assunzioni: check eseguiti sul sistema reale.
+
+> **La migrazione non è ancora avvenuta.** Questo documento fotografa l'host
+> *prima* dello spostamento in VM: è il punto di partenza, non lo stato
+> corrente dello stack. Il gateway non è mai stato deployato — di conseguenza
+> nessun test funzionale (TC-01, TC-02, TC-04, TC-05) è mai stato eseguito
+> contro una catena reale, e il registro TC-05 in `TEST-PLAN.md` è vuoto per
+> quel motivo, non per dimenticanza.
 
 | Componente | Stato verificato | Azione |
 |---|---|---|

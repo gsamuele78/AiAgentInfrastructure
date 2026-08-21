@@ -14,7 +14,7 @@ Infrastruttura per agenti AI a **maintainer singolo**: un gateway LiteLLM
 lane per dati sensibili, LLM locale e self-hosted BIOME.
 
 ```
-HOST ermes                                   VM KVM
+HOST (workstation)                                   VM KVM
 Claude Code ──abbonamento──► Anthropic       ┌────────────────────────┐
 opencode / OpenChamber ─┐                    │ litellm :4000          │
 Codex ──────────────────┼─127.0.0.1:4000────►│  └─[headroom callback] │
@@ -38,8 +38,8 @@ CI fallisce.
 
 | # | Invariante | Perché |
 |---|---|---|
-| 1 | **Un solo gateway**: nessun client parla direttamente a un provider | ADR-0001 |
-| 2 | Compressione = **callback** dentro LiteLLM, non un proxy davanti | ADR-0003 |
+| 1 | **Un solo gateway**: nessun client parla direttamente a un provider — *eccezione: la lane abbonamento di Claude Code, ADR-0014* | ADR-0001 |
+| 2 | Compressione = **callback** dentro LiteLLM, non un proxy davanti — *stessa eccezione* | ADR-0003 |
 | 3 | Ollama bindato **solo su virbr0**, mai `0.0.0.0` | non ha autenticazione |
 | 4 | postgres **non pubblica porte**; vLLM **su loopback** | least exposure |
 | 5 | Config montate `:ro`; solo DB e workspace scrivibili | immutabilità |
@@ -95,6 +95,7 @@ attenzione continua.
 | `headroom wrap` riscrive i config dei client | i tool tornano a `:8787` | `headroom unwrap`, poi `audit-integration.py` |
 | Alias MCP lunghi (`github.com/...`) | "Model tried to call unavailable tool" | alias corti: `reason`, `mem`, `fs`, `ctx7` |
 | `ANTHROPIC_API_KEY` residua nell'ambiente | fatturazione a consumo **silenziosa** invece dell'abbonamento | `unset`; verifica con `/status` |
+| `cleanup-host.sh` senza `KEEP_HEADROOM=1` | Claude Code muto: la lane B punta a una porta chiusa | ADR-0014; riattiva `headroom.service` |
 | IP della VM cambia | gateway "giù" senza motivo | riserva DHCP (`VM-KVM-GUIDE.md`) |
 | `shm_size` mancante su vLLM | crash oscuro all'avvio | `shm_size: 16gb` |
 | `proxy_buffering` attivo in nginx | streaming che arriva in blocco | `proxy_buffering off` |
@@ -112,12 +113,13 @@ attenzione continua.
 4. Nessuno scan CVE delle immagini
 5. `sync_openrouter.py` **non esiste**: ADR-0004 è deciso ma non implementato,
    quindi F8 non c'è e vale solo il wildcard `openrouter/*`
-6. Lane locale (F5) e BIOME (F6) **non sono in `services/litellm_config.yaml`**:
-   vivono solo nei doc e nell'output da incollare a mano di `setup-ollama.sh`
+6. **Lo stack non è mai stato deployato**: nessun ✅ del repo significa "visto
+   funzionare". Il primo deploy è anche il primo test reale della catena
 7. `functional.yml` ha `continue-on-error: true` **sul job**: TC-01/02/04/05
    girano ma non possono far fallire nulla — l'unico gate reale è la CI statica
-8. Il repo è **pubblico**, mentre `docs/GITHUB-SETUP.md` assume che sia privato
-   (runner self-hosted, IP interni, nomi macchina)
+8. Il repo è **pubblico**: mai aggiungere `pull_request` ai trigger di un
+   workflow `self-hosted` (`GITHUB-SETUP.md` §4), mai versionare FQDN interni,
+   nomi macchina o path personali — `test-scripts.sh` §3 lo verifica
 
 Elenco completo e razionale in `docs/DEVOPS-AUDIT.md`.
 

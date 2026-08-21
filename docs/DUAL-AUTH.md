@@ -16,7 +16,8 @@ traffico passa dal proxy.
 | opencode / Codex | virtual key | serve routing, lane privacy/locale, spend |
 
 ## Variabili — la parte che si sbaglia
-**Nessuna variabile `ANTHROPIC_*` globale.** Due errori silenziosi:
+**Nessuna variabile `ANTHROPIC_*` globale** — con l'unica eccezione di
+`ANTHROPIC_BASE_URL` nella variante B. Due errori silenziosi:
 - `ANTHROPIC_API_KEY` impostata → **vince sull'abbonamento** (paghi a consumo)
 - `ANTHROPIC_AUTH_TOKEN` impostata → Claude Code **non usa affatto** l'abbonamento
 
@@ -29,13 +30,14 @@ Mantieni skill/MCP/graphify. Perdi solo la compressione su questa lane.
 
 **(B) Abbonamento + headroom** — `ANTHROPIC_BASE_URL=http://127.0.0.1:8787`,
 riattivando il proxy standalone con upstream Anthropic. Recuperi la compressione.
-> ⚠️ **Questa variante contraddice due invarianti del progetto**: #1 (un solo
-> gateway, nessun client parla direttamente a un provider) e #2 (la compressione
-> è un callback dentro LiteLLM, non un proxy davanti — ADR-0003, che supersede
-> 0002). È anche esattamente il proxy che `cleanup-host.sh` rimuove e che
-> `audit-integration.py` segnala. Se la usi, sei fuori dall'architettura
-> documentata: o si accetta con un ADR che lo dichiari, o si sceglie A o C.
-> Vedi la domanda aperta in `docs/DEVOPS-AUDIT.md`.
+**Questa è la variante in uso.** È un'**eccezione dichiarata** alle invarianti #1
+e #2, formalizzata in [ADR-0014](adr/0014-headroom-standalone-per-la-lane-abbonamento.md):
+leggilo prima di replicarla, in particolare i quattro limiti e le conseguenze
+negative. In sintesi:
+> - upstream **solo** `api.anthropic.com`, mai OpenRouter (era il bug di `CURRENT-STATE.md`);
+> - **nessun altro client** su `:8787`: opencode, OpenChamber e Codex restano sul gateway;
+> - i template in `clients/` non contengono `:8787` — la variante si configura sulla macchina;
+> - pulisci l'host con `KEEP_HEADROOM=1 ./scripts/cleanup-host.sh`, altrimenti la spegni.
 
 **(C) Abbonamento via LiteLLM** — `BASE_URL=:4000`, `ANTHROPIC_MODEL=anthropic-claude`,
 `ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-..."`, con

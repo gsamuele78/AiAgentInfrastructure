@@ -1,7 +1,7 @@
 # ARCHITECTURE
 
 ```
-  HOST ermes                                  VM KVM locale (virt-manager)
+  HOST (workstation)                                  VM KVM locale (virt-manager)
   ┌────────────────────────────┐             ┌──────────────────────────────┐
   │ VSCodium + OpenChamber     │             │ docker compose:              │
   │ opencode :3000 ────────────┼─127.0.0.1───┤   litellm :4000              │

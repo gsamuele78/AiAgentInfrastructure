@@ -53,10 +53,10 @@ alla ricerca. Tensor-parallel solo se un modello non entra in 48 GB.
 ## Certificati (step-ca)
 ```bash
 # server
-step ca certificate "biome-llm.biome.unibo.it" /etc/nginx/certs/server.crt /etc/nginx/certs/server.key
+step ca certificate "biome-llm.<dominio-interno>" /etc/nginx/certs/server.crt /etc/nginx/certs/server.key
 step ca root /etc/nginx/certs/step-root.crt
 # client (sul laptop)
-step ca certificate "litellm-gateway.jfs" ~/.config/litellm/client.crt ~/.config/litellm/client.key
+step ca certificate "litellm-gateway.$(hostname -s)" ~/.config/litellm/client.crt ~/.config/litellm/client.key
 chmod 600 ~/.config/litellm/client.key
 # rinnovo automatico (cert a vita breve per design)
 step ca renew --daemon --exec "systemctl reload nginx" /etc/nginx/certs/server.crt /etc/nginx/certs/server.key
@@ -67,7 +67,7 @@ step ca renew --daemon --exec "systemctl reload nginx" /etc/nginx/certs/server.c
 limit_req_zone $ssl_client_s_dn zone=llm:10m rate=30r/m;
 server {
     listen 10.x.x.x:8443 ssl;  http2 on;
-    server_name biome-llm.biome.unibo.it;
+    server_name biome-llm.<dominio-interno>;
     ssl_certificate /etc/nginx/certs/server.crt;
     ssl_certificate_key /etc/nginx/certs/server.key;
     ssl_protocols TLSv1.3;
@@ -91,7 +91,7 @@ sidecar termina l'mTLS in uscita, LiteLLM parla HTTP in locale.
 [biome-llm]
 client = yes
 accept  = 0.0.0.0:8443
-connect = biome-llm.biome.unibo.it:8443
+connect = biome-llm.<dominio-interno>:8443
 cert = /certs/client.crt
 key  = /certs/client.key
 CAfile = /certs/step-root.crt
@@ -108,9 +108,9 @@ verifyChain = yes
 
 ## Verifica
 ```bash
-curl -sk https://biome-llm...:8443/v1/models                    # SENZA cert: DEVE fallire
+curl -sk https://biome-llm.<dominio-interno>:8443/v1/models                    # SENZA cert: DEVE fallire
 curl -s --cert client.crt --key client.key --cacert step-root.crt \
-     https://biome-llm...:8443/v1/models                        # 200
+     https://biome-llm.<dominio-interno>:8443/v1/models                        # 200
 ```
 ⚠️ **Gotcha VM→VPN:** la VM è dietro NAT libvirt, la VPN gira sull'host. Alcuni
 client VPN bloccano il forwarding da `virbr0`. Verifica `ip route get <IP>` e

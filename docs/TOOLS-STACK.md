@@ -6,12 +6,17 @@
 | Mappa d'insieme | **graphify** (uv, skill) | — (occasionale, non sempre attivo) |
 | Metodologia | **mattpocock/skills** | — |
 | Security | **AgentShield** (npx, da ECC) | — |
-| Modelli | **LiteLLM** + headroom callback | proxy headroom standalone |
+| Modelli | **LiteLLM** + headroom callback | proxy headroom standalone, **tranne** la lane abbonamento (ADR-0014) |
 
+> **Eccezione dichiarata:** `headroom.service` resta attivo come proxy per la sola
+> lane abbonamento di Claude Code — variante B di `DUAL-AUTH.md`, formalizzata in
+> [ADR-0014](adr/0014-headroom-standalone-per-la-lane-abbonamento.md). Sono due
+> punti di compressione, non uno: è il costo dichiarato di comprimere la lane più
+> usata senza farla passare dal gateway.
+>
 > `clients/codex-config.toml` registra anche un **MCP** `headroom`
-> (`headroom mcp serve`): è un tool a sé, non il proxy rimosso da
-> `cleanup-host.sh`, ma non è censito in questa tabella. Da confermare o
-> rimuovere (ADR-0006, un tool per layer).
+> (`headroom mcp serve`): è un tool a sé, non il proxy. Non è censito in questa
+> tabella — da confermare o rimuovere (ADR-0006, un tool per layer).
 
 **Non adottati:** `superpowers` (overlap metodologia + subagent-heavy = costo
 token e meno controllo) e **ECC full** (261 skill + hook → context bloat, contro

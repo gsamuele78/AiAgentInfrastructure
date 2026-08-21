@@ -5,7 +5,7 @@
 #  Non distruttivo: ripristina in un DB SCRATCH, mai su quello di produzione.
 #
 #  Uso:  ./restore-test.sh                                  (compose in locale)
-#        VM_SSH=jfs@192.168.122.50 ./restore-test.sh          (via ssh sulla VM)
+#        VM_SSH=$VM_USER@192.168.122.50 ./restore-test.sh          (via ssh sulla VM)
 #        COMPOSE_DIR=/path/to/llm-services ./restore-test.sh  (dir esplicita)
 #        ./restore-test.sh --dry-run                          (stampa e basta)
 # ============================================================

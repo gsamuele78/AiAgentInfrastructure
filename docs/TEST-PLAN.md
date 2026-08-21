@@ -18,8 +18,8 @@
 | F2 | `test-all.sh gateway` — alias coding/smart/cheap | L5 |
 | F3 | `test-all.sh compress` — TC-01 | L5 |
 | F4 | header provider OpenRouter | L6 |
-| F5 | `test-all.sh local` — verifica Ollama, **non** che il gateway abbia la lane: `local-fast`/`local-good` non sono in `litellm_config.yaml` | L5 |
-| F6 | `test-all.sh biome` — `skip` se `biome-coder` non è registrato, e nel config versionato non lo è | L5 |
+| F5 | `test-all.sh local` — verifica che Ollama risponda; `local-fast`/`local-good` sono nel config versionato ma il test **non** verifica che il gateway li instradi | L5 |
+| F6 | `test-all.sh biome` — `biome-coder` è nel config versionato; il test resta `skip` se il gateway non è raggiungibile o la VPN è giù | L5 |
 | F7 | `/spend/logs` | L5 |
 | F8 | — | ❌ **non implementato**: `sync_openrouter.py` non esiste (ADR-0004, debito #5 in DEVOPS-AUDIT) |
 | F9 | `/status` in Claude Code — TC-04 | L6 |

@@ -25,8 +25,8 @@ ask "Creare la VM ora con create-vm.sh (cloud-init, automatico)?" \
   && run "./create-vm.sh" || warn "creazione VM saltata (manuale: docs/VM-DEBIAN-INSTALL.md)"
 cat <<'X'
   Poi, deploy dei servizi nella VM:
-    scp -r services/ jfs@<VM_IP>:~/llm-services/
-    ssh jfs@<VM_IP>; cd ~/llm-services
+    scp -r services/ $VM_USER@<VM_IP>:~/llm-services/
+    ssh $VM_USER@<VM_IP>; cd ~/llm-services
     cp .env.example .env && chmod 600 .env && $EDITOR .env
     docker compose build && docker compose up -d
     curl -s http://127.0.0.1:4000/health/liveliness
@@ -79,7 +79,7 @@ run "./devops-audit.sh || true"; run "./audit-integration.py || true"; run "./te
 if ph 8; then say "FASE 8 — Baseline, backup e TEST del restore"
 cat <<'X'
   virsh -c qemu:///system snapshot-create-as llm-vm baseline --description "stack ok"
-  ssh jfs@<VM_IP> 'cd ~/llm-services && ./backup-db.sh'
+  ssh $VM_USER@<VM_IP> 'cd ~/llm-services && ./backup-db.sh'
   ./restore-test.sh          # TC-05: OBBLIGATORIO almeno una volta
 
   Nel repo, prima sessione:
