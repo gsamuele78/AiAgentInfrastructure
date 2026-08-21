@@ -19,11 +19,21 @@ con log driver `local` e `live-restore`, journald dimensionato sulla VM) →
 **crea la riserva DHCP** così l'IP non cambia mai → `virt-install --import` →
 autostart → attende il provisioning e verifica docker.
 
-Prerequisiti sull'host:
+Prerequisiti sull'host — il comando dipende dalla distribuzione, e
+`create-vm.sh` stampa quello giusto per la tua se manca qualcosa:
 ```bash
-sudo apt install -y libvirt-daemon-system virtinst cloud-image-utils qemu-utils wget
+# Debian / Ubuntu
+sudo apt install -y libvirt-daemon-system virtinst virt-manager cloud-image-utils qemu-utils wget
+# Fedora / RHEL
+sudo dnf install -y libvirt virt-install virt-manager cloud-utils qemu-img wget
+# OS atomici (Bazzite, Silverblue, Kinoite): serve un layer e un REBOOT
+rpm-ostree install libvirt virt-install virt-manager cloud-utils qemu-img && systemctl reboot
+
 ssh-keygen -t ed25519      # se non hai già una chiave
 ```
+> La VM resta **Debian** in ogni caso: `create-vm.sh` scarica una cloud image
+> Debian, quindi l'`apt` dentro il blocco cloud-init è corretto per costruzione,
+> qualunque sia l'OS dell'host.
 
 Variabili: `VM_NAME VM_IP VM_RAM_MB VM_VCPU VM_DISK_GB VM_USER SSH_KEY POOL_DIR NET IMG_URL`.
 

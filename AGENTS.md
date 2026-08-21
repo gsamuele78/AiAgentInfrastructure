@@ -110,6 +110,11 @@ attenzione continua.
 | pricing letto da `model_info` | il diff non vede mai un cambiamento | `/model/info` riempie `model_info` con la cost map: il prezzo si scrive e si rilegge da `litellm_params` |
 | `set -e` tolto per aggiungere un `run()` | lo script esce 0 pur avendo fallito | controlla a mano i comandi critici (vedi `backup-db.sh`) |
 | `api_base` verso un hostname senza servizio nel compose | la lane fallisce al primo uso, non al deploy | `test-scripts.sh` §4 lo verifica |
+| GPU dedotta da `command -v nvidia-smi` | "GPU non rilevata" su una macchina che ce l'ha (OS atomico senza driver, dGPU spenta, container) | si guarda il bus PCI: `nvidia_pci_devices` in `scripts/lib/hw-detect.sh` |
+| `apt install` come hint universale | su Fedora/Bazzite il consiglio non funziona | `pkg_hint` / `pkg_install_cmd`; su OS atomico serve `rpm-ostree` + reboot |
+| `ufw` dato per scontato | su Fedora il firewall e' `firewalld`: il comando non fallisce, semplicemente non apre niente | `setup-ollama.sh` gestisce entrambi |
+| `df /` per lo spazio disco | su ostree e' l'overlay composefs (~meta' della RAM), non il disco | misura `/var` (`vm_disk_path`) |
+| `readlink -f` su un symlink assente | stampa il percorso risolto invece di niente | `[ -L ]` prima, poi `readlink` semplice |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 

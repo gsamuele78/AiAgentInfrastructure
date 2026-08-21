@@ -3,6 +3,8 @@
 # ORDINE PSE: la VM va su e verificata PRIMA di pulire l'host.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; cd "$HERE"
+# shellcheck source=lib/hw-detect.sh
+. "$HERE/lib/hw-detect.sh"
 DRY=0; ONLY=""
 for a in "$@"; do case "$a" in --dry-run) DRY=1;; [0-9]*) ONLY="$a";; esac; done
 run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
@@ -34,7 +36,21 @@ X
 ask "Fase 1 completata?" && ok "servizi su" || warn saltata; fi
 
 if ph 2; then say "FASE 2 — Forward host → VM"
-run "command -v socat >/dev/null || sudo apt install -y socat"
+# socat: nome uguale ovunque, comando no. Su un OS atomico serve rpm-ostree
+# (e un reboot), quindi qui si avvisa invece di eseguire alla cieca.
+if ! command -v socat >/dev/null 2>&1; then
+  SOCAT_CMD=$(pkg_install_cmd socat)
+  if [ -n "$SOCAT_CMD" ]; then
+    run "$SOCAT_CMD"
+  elif os_is_atomic; then
+    # Su un OS atomico non si installa al volo: serve un layer e un reboot.
+    warn "socat assente. OS atomico: rpm-ostree install socat && systemctl reboot"
+    ask "installato e riavviato?" || true
+  else
+    warn "socat assente: installalo col gestore di pacchetti del tuo OS"
+    ask "installato?" || true
+  fi
+fi
 run "install -d ~/.config/litellm ~/.config/systemd/user"
 [ -f ~/.config/litellm/forward.env ] || {
   run "cp ../systemd/forward.env.example ~/.config/litellm/forward.env"

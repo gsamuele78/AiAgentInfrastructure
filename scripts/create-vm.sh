@@ -14,6 +14,9 @@
 #        ./create-vm.sh --destroy             rimuove la VM
 # ============================================================
 set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/hw-detect.sh
+. "$HERE/lib/hw-detect.sh"
 
 VM_NAME="${VM_NAME:-llm-vm}"
 VM_IP="${VM_IP:-192.168.122.50}"
@@ -57,9 +60,11 @@ miss(){ if [ "$DRY" = 1 ]; then warn "$*"; else die "$*"; fi; }
 say "1. Prerequisiti"
 MISSING=0
 for t in virt-install virsh qemu-img cloud-localds wget; do
-  command -v "$t" >/dev/null || { MISSING=1; miss "manca '$t' — sudo apt install -y libvirt-daemon-system virtinst cloud-image-utils qemu-utils wget"; }
+  command -v "$t" >/dev/null || { MISSING=1; miss "manca '$t'"; }
 done
-[ "$MISSING" = 0 ] && ok "strumenti presenti"
+# Il comando giusto dipende dall'OS: un hint Debian su Fedora/Bazzite non
+# funziona, e su un OS atomico serve rpm-ostree piu' un reboot.
+[ "$MISSING" = 0 ] && ok "strumenti presenti" || echo "     $(pkg_hint libvirt)"
 [ -r "$SSH_KEY" ] && ok "chiave SSH: $SSH_KEY" \
   || miss "chiave SSH non trovata: $SSH_KEY  (ssh-keygen -t ed25519)"
 if command -v virsh >/dev/null 2>&1; then

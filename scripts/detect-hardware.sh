@@ -2,6 +2,9 @@
 # Rileva l'hardware e RACCOMANDA sizing VM, modello locale, tuning Ollama.
 # Solo lettura.  --emit-config stampa i frammenti pronti da incollare.
 set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/hw-detect.sh
+. "$HERE/lib/hw-detect.sh"
 EMIT=0; [ "${1:-}" = "--emit-config" ] && EMIT=1
 sec(){ echo -e "\n\033[36m━━ $* ━━\033[0m"; }
 kv(){ printf "  %-22s %s\n" "$1" "$2"; }
@@ -18,6 +21,7 @@ CHASSIS=$(hostnamectl chassis 2>/dev/null || echo unknown)
 [ -d /sys/class/power_supply/BAT0 ] && CHASSIS=laptop
 kv "CPU" "${MODEL:-n/d} (${CORES} core)"; kv "RAM" "${RAM_GB} GB (liberi ${RAM_AV} GB)"
 kv "Swap" "${SWAP} GB"; kv "Macchina" "$CHASSIS"
+kv "Sistema" "$(os_pretty)$(os_is_atomic && echo '  [atomico: /usr in sola lettura]')"
 
 sec "Sizing VM servizi"
 if [ "$RAM_GB" -ge 24 ]; then
@@ -32,7 +36,11 @@ kv "Disco VM" "20 GB qcow2 thin (qcow2 OBBLIGATORIO per gli snapshot)"
 
 sec "GPU e inferenza locale"
 OLL=""; NGPU_LAYERS=""
-if command -v nvidia-smi >/dev/null 2>&1; then
+# L'hardware si cerca sul bus PCI, PRIMA di chiedere a nvidia-smi: dedurre
+# l'assenza di una GPU dall'assenza di un binario e' sbagliato su un OS
+# atomico senza driver proprietari, a dGPU spenta e dentro un container.
+GPU_ADDRS=$(nvidia_pci_devices)
+if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
   nvidia-smi --query-gpu=index,name,memory.total --format=csv,noheader 2>/dev/null \
     | while IFS=, read -r i n m; do kv "GPU $i" "$n —$m"; done
   V=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' '); V=${V:-0}
@@ -51,21 +59,44 @@ if command -v nvidia-smi >/dev/null 2>&1; then
     warn "Un 3B non regge il coding agentico complesso: usalo come Tier 0"
   else warn "VRAM ${V} MiB: solo CPU (lento, adatto a batch)"; fi
   [ "$CHASSIS" = laptop ] && warn "Laptop: OLLAMA_KEEP_ALIVE=2m (termico/batteria)"
+elif [ -n "$GPU_ADDRS" ]; then
+  # C'E' l'hardware ma non gli strumenti: dirlo, invece di dichiarare
+  # "non rilevata" e mandare l'utente sulle lane cloud per niente.
+  for a in $GPU_ADDRS; do
+    kv "GPU NVIDIA" "$(nvidia_pci_name "$a")"
+    kv "" "PCI $a · driver: $(nvidia_pci_driver_label "$a")"
+  done
+  warn "hardware presente ma nvidia-smi non risponde: VRAM non misurabile"
+  rec "$(nvidia_missing_hint "$(nvidia_pci_driver "${GPU_ADDRS%%$'\n'*}")")"
+  nvidia_kernel_module_loaded && rec "il modulo kernel nvidia E' caricato: manca solo il pacchetto degli strumenti"
+  warn "finche' resta cosi', l'inferenza locale non e' disponibile: usa le lane cloud/BIOME"
 else
-  kv "GPU NVIDIA" "non rilevata"; rec "Nessuna inferenza locale: usa le lane cloud/BIOME"
+  kv "GPU NVIDIA" "non rilevata"
+  kv "" "nessun dispositivo 0x10de di classe 0x03 sul bus PCI"
+  rec "Nessuna inferenza locale: usa le lane cloud/BIOME"
 fi
 
 sec "Virtualizzazione e rete"
 grep -qE 'vmx|svm' /proc/cpuinfo 2>/dev/null && kv KVM supportato || warn "virtualizzazione HW non attiva (BIOS?)"
-command -v virsh >/dev/null 2>&1 && kv libvirt presente || warn "libvirt assente: apt install virt-manager libvirt-daemon-system"
+command -v virsh >/dev/null 2>&1 && kv libvirt presente \
+  || { warn "libvirt assente"; rec "$(pkg_hint libvirt)"; }
 BRIP=""
 if ip -4 addr show virbr0 >/dev/null 2>&1; then
   BRIP=$(ip -4 -o addr show virbr0 | awk '{print $4}' | cut -d/ -f1)
   kv virbr0 "$BRIP"; rec "Ollama va bindato su $BRIP (NON 0.0.0.0)"
 else warn "virbr0 assente: rete libvirt 'default' non attiva"; fi
-command -v docker >/dev/null 2>&1 && kv docker "$(docker --version 2>/dev/null)" || warn "docker assente (serve nella VM)"
+command -v docker >/dev/null 2>&1 && kv docker "$(docker --version 2>/dev/null)" \
+  || { warn "docker assente sull'host"; rec "$(pkg_hint docker)"; }
 
-sec "Disco"; df -h / 2>/dev/null | awk 'NR<=2{printf "  %s\n",$0}'
+sec "Disco"
+# Si guarda dove finira' il qcow2, non "/": su un OS atomico "/" e' l'overlay
+# composefs e riporta ~meta' della RAM, che col disco non c'entra niente.
+DISKP=$(vm_disk_path)
+kv "Percorso valutato" "$DISKP"
+df -h "$DISKP" 2>/dev/null | awk 'NR<=2{printf "  %s\n",$0}'
+if os_is_atomic && [ "$DISKP" = "/" ]; then
+  warn "OS atomico: '/' e' un overlay composefs, la dimensione NON e' quella del disco"
+fi
 
 if [ "$EMIT" = 1 ] && [ -n "$OLL" ]; then
 sec "Frammenti pronti"

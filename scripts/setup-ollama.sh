@@ -12,6 +12,9 @@
 #        MODEL=qwen2.5-coder:7b ./setup-ollama.sh    forza il modello
 # ============================================================
 set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/hw-detect.sh
+. "$HERE/lib/hw-detect.sh"
 DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
 run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
 say(){ echo -e "\n\033[36m━━ $* ━━\033[0m"; }
@@ -31,10 +34,18 @@ else ok "virbr0 = $BRIP  → Ollama ascolterà qui (non su 0.0.0.0)"; fi
 # ---------------------------------------------------------------- 2. gpu
 say "2. GPU e scelta del modello"
 VRAM=0; LAYERS=""
-if command -v nvidia-smi >/dev/null 2>&1; then
+# Come in detect-hardware.sh: l'hardware si cerca sul bus PCI, non nella
+# presenza di nvidia-smi. Dire "nessuna GPU" a chi ce l'ha ma senza driver
+# lo manderebbe su CPU senza spiegargli perche'.
+GPU_ADDRS=$(nvidia_pci_devices)
+if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
   nvidia-smi --query-gpu=name,memory.total --format=csv,noheader | sed 's/^/  GPU: /'
   VRAM=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits | head -1 | tr -d ' ')
-else warn "nessuna GPU NVIDIA: inferenza su CPU (lenta, adatta solo a batch)"; fi
+elif [ -n "$GPU_ADDRS" ]; then
+  for a in $GPU_ADDRS; do echo "  GPU: $(nvidia_pci_name "$a")  [driver: $(nvidia_pci_driver_label "$a")]"; done
+  warn "GPU presente ma nvidia-smi non risponde: Ollama girera' su CPU"
+  warn "$(nvidia_missing_hint "$(nvidia_pci_driver "${GPU_ADDRS%%$'\n'*}")")"
+else warn "nessuna GPU NVIDIA sul bus PCI: inferenza su CPU (lenta, adatta solo a batch)"; fi
 RAM_AV=$(awk '/MemAvailable/{printf "%d", $2/1024/1024}' /proc/meminfo)
 
 if [ -n "${MODEL:-}" ]; then
@@ -83,10 +94,22 @@ run "sudo systemctl daemon-reload && sudo systemctl restart ollama"
 sleep 3
 
 # ---------------------------------------------------------------- 5. firewall
+# Il firewall non e' ufw dappertutto: su Fedora/RHEL (e quindi su Bazzite e
+# sugli altri OS atomici) e' firewalld. Aprire la porta col comando sbagliato
+# non da' errore: semplicemente non apre niente, e la VM non vede Ollama.
 if command -v ufw >/dev/null 2>&1 && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-  say "5. Firewall"
+  say "5. Firewall (ufw)"
   run "sudo ufw allow from 192.168.122.0/24 to any port 11434 proto tcp"
   ok "consentito solo dalla subnet libvirt"
+elif command -v firewall-cmd >/dev/null 2>&1 && sudo firewall-cmd --state >/dev/null 2>&1; then
+  say "5. Firewall (firewalld)"
+  # rich rule: consente la 11434 SOLO dalla subnet libvirt, non da tutta la rete
+  run "sudo firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"192.168.122.0/24\" port port=\"11434\" protocol=\"tcp\" accept'"
+  run "sudo firewall-cmd --reload"
+  ok "consentito solo dalla subnet libvirt"
+else
+  say "5. Firewall"
+  echo "  nessun firewall attivo fra ufw e firewalld: niente da aprire"
 fi
 
 # ---------------------------------------------------------------- 6. modelli
