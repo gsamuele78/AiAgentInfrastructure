@@ -8,8 +8,12 @@ env_key = "OPENAI_API_KEY"
 [mcp_servers.serena]
 command = "uvx"
 args = ["--from","git+https://github.com/oraios/serena","serena","start-mcp-server","--context","codex","--project-from-cwd"]
+# MCP headroom: e' un TOOL a se', non il proxy standalone rimosso da
+# cleanup-host.sh. La compressione resta il callback dentro LiteLLM (ADR-0003).
+# Non e' censito in docs/TOOLS-STACK.md: valuta se serve davvero (ADR-0006).
 [mcp_servers.headroom]
 command = "headroom"
 args = ["mcp","serve"]
-[projects."/home/jfs"]
+# Sostituisci con la TUA home o la root dei progetti fidati.
+[projects."/home/CHANGEME"]
 trust_level = "trusted"

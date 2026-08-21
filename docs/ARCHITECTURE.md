@@ -1,7 +1,7 @@
 # ARCHITECTURE
 
 ```
-  HOST ermes                                  VM KVM locale (virt-manager)
+  HOST (workstation)                                  VM KVM locale (virt-manager)
   ┌────────────────────────────┐             ┌──────────────────────────────┐
   │ VSCodium + OpenChamber     │             │ docker compose:              │
   │ opencode :3000 ────────────┼─127.0.0.1───┤   litellm :4000              │
@@ -24,6 +24,11 @@ Le decisioni sono tracciate in `adr/`. Sintesi:
 - **0008** Ollama sull'host (niente passthrough), bind su virbr0.
 - **0009** mTLS per M2M verso BIOME; Keycloak solo per gli umani.
 - **0010** CI di validazione + functional su runner self-hosted; nessun CD.
+- **0011** cloud-init invece dell'installazione manuale della VM.
+- **0012** Il multi-tenant BIOME vive in un repo separato.
+- **0013** `AGENTS.md` è la memoria di progetto (supersede 0007 sul file canonico).
+- **0014** Headroom standalone ammesso sulla sola lane abbonamento (eccezione a 0001/0003).
+- **0015** I test funzionali possono fallire (supersede una conseguenza di 0010).
 
 ## Autenticazione (doppia rotta)
 | Client | Auth | Vedi |

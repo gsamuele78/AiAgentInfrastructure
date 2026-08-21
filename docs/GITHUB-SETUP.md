@@ -22,8 +22,16 @@ git ls-files | xargs grep -lE 'sk-ant-[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-z0-9]{20,}
 
 ## 2. Impostazioni consigliate del repo
 
-**Visibilità:** privato, almeno finché non hai rimosso ogni riferimento a
-percorsi e host interni (`192.168.122.x`, nomi macchina, path `/home/jfs`).
+**Visibilità: il repo è PUBBLICO.** È una scelta, non una dimenticanza, e ha due
+conseguenze operative che vanno tenute vive:
+
+1. **Niente identificatori interni nei file versionati.** I template usano
+   `$USER`, `$VM_USER`, `<dominio-interno>` e `CHANGEME-*`. La subnet
+   `192.168.122.0/24` resta in chiaro apposta: è il default di libvirt, uguale
+   su ogni macchina, e gli script la usano davvero. FQDN reali, IP di ateneo,
+   nomi macchina e path personali no: non rientrano.
+2. **Il runner self-hosted diventa la superficie di attacco principale** — vedi
+   §4, dove il vincolo è stretto.
 
 **Settings → General**
 - Disabilita Wiki e Projects (non servono a un repo single-maintainer)
@@ -44,7 +52,7 @@ percorsi e host interni (`192.168.122.x`, nomi macchina, path `/home/jfs`).
 | Secret | Contenuto |
 |--------|-----------|
 | `LITELLM_MASTER_KEY` | la master key del gateway |
-| `VM_SSH_TARGET` | es. `jfs@192.168.122.50` |
+| `VM_SSH_TARGET` | es. `$VM_USER@192.168.122.50` |
 
 ## 3. Etichette utili
 ```bash
@@ -66,17 +74,34 @@ tar xzf actions-runner.tar.gz
 ./config.sh --url https://github.com/gsamuele78/AiAgentInfrastructure \
             --token <TOKEN_DALLA_PAGINA> \
             --labels self-hosted,linux,llm-gateway \
-            --name ermes --unattended
+            --name "$(hostname -s)" --unattended
 sudo ./svc.sh install && sudo ./svc.sh start     # oppure: ./run.sh
 ```
 
 Le label `self-hosted,linux,llm-gateway` devono corrispondere a `runs-on` in
 `functional.yml`.
 
-⚠️ **Sicurezza del runner:** un self-hosted runner esegue il codice del repo
-sulla tua macchina. È accettabile perché il repo è **tuo e privato**. Se un
-giorno lo rendi pubblico, **rimuovi il runner**: chiunque apra una PR potrebbe
-eseguire codice arbitrario sull'host.
+⚠️ **Sicurezza del runner — il repo è pubblico, quindi leggi tutto.**
+Un self-hosted runner esegue il codice del repo sulla tua macchina. Su un repo
+pubblico questo è pericoloso *se* un workflow può essere innescato da un
+estraneo.
+
+Oggi **non lo è**, e per una ragione precisa: `functional.yml` gira solo su
+`workflow_dispatch` e `schedule`, mai su `pull_request`. Una PR da un fork non
+lo avvia, e i secret del repo non sono esposti ai fork. Il vincolo da non
+violare è quindi uno solo:
+
+> **Non aggiungere `pull_request` (né `pull_request_target`) ai trigger di
+> `functional.yml`, e non aggiungere trigger a un workflow che gira su
+> `runs-on: [self-hosted, ...]`.** Farlo significa dare esecuzione di codice
+> arbitrario sull'host a chiunque apra una PR.
+
+In più, per difesa in profondità:
+- **Settings → Actions → General → Fork pull request workflows**: richiedi
+  l'approvazione per tutti gli outside collaborator.
+- Se il runner non ti serve, **rimuovilo**: è l'opzione più sicura, e la CI
+  statica su runner GitHub resta comunque l'unico gate reale (vedi
+  `TEST-PLAN.md`).
 
 Il workflow ha `continue-on-error: true`: se il laptop è spento il job non fa
 fallire il repo.
@@ -99,3 +124,8 @@ che gli ADR indicizzati esistano e abbiano uno Status.
 Già coperto da `.gitignore`: `.env`, `*.key`, `*.crt` (tranne la root CA),
 `forward.env`, `master.key`, `*.bak-*`, `audit-*.txt`, `.serena/`, `graph.json`.
 Vedi `SECURITY.md` per la procedura se un segreto finisce in history.
+
+Su un repo pubblico vale anche per ciò che segreto non è ma è identificante:
+FQDN interni, IP di ateneo, nomi macchina, path personali. Se ne aggiungi uno
+per sbaglio, sostituiscilo con un placeholder — non serve riscrivere la history
+per un hostname, ma serve smettere di aggiungerne.

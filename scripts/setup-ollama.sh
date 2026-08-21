@@ -111,7 +111,10 @@ if [ "$DRY" = 0 ]; then
 fi
 
 # ---------------------------------------------------------------- 8. litellm
-say "8. Blocco per services/litellm_config.yaml"
+say "8. Confronto con services/litellm_config.yaml"
+echo "  Le lane local-fast / local-good sono GIA' nel config versionato con"
+echo "  qwen2.5-coder:3b e :7b su http://${BRIP}:11434."
+echo "  Ti serve modificarlo solo se hai scaricato taglie diverse da quelle qui sotto."
 cat <<YML
 
   - model_name: local-fast
@@ -139,5 +142,5 @@ YML
   ⚠️ Mai far toccare lo swap: la velocità crolla di ordini di grandezza.
 TUN
 echo
-echo "  Aggiungi il blocco al config nella VM, poi:  docker compose up -d"
+echo "  Se hai modificato il config nella VM:  docker compose up -d"
 echo "  Test:  ./test-all.sh local"

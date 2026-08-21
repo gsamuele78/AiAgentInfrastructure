@@ -52,7 +52,7 @@ endpoint propri. Quattro difetti **osservati sul sistema reale**:
 | ID | Requisito | Verifica |
 |----|-----------|----------|
 | N1 | Nessun segreto leggibile da altri utenti | `devops-audit.sh` §2 + CI |
-| N2 | Gateway non raggiungibile dalla LAN | bind loopback + NAT |
+| N2 | Gateway non raggiungibile dalla LAN | socat su loopback (host) + NAT libvirt (VM) |
 | N3 | Ripristino < 5 min | snapshot VM (TC-06) |
 | N4 | Config validabile prima del deploy | CI + `dockerd --validate` |
 | N5 | Nessuna dipendenza non mantenibile da 1 persona | audit trimestrale |

@@ -17,6 +17,34 @@ model_list:
       model: openrouter/openrouter/auto:exacto
       api_key: os.environ/OPENROUTER_API_KEY
       extra_body: { provider: { data_collection: deny, require_parameters: true } }
+
+  # --- F5: lane locale (ADR-0008) -------------------------------------------
+  # Ollama gira SULL'HOST, bindato sul bridge libvirt: dalla VM l'host e'
+  # 192.168.122.1. Il modello lo sceglie setup-ollama.sh in base alla VRAM: se
+  # scarichi taglie diverse, allinea `model` qui.
+  # Se Ollama non e' attivo, queste lane rispondono errore: sono le UNICHE che
+  # dipendono da un servizio fuori dalla VM.
+  - model_name: local-fast                # 3B full-VRAM: latenza bassa, FIM
+    litellm_params:
+      model: ollama_chat/qwen2.5-coder:3b
+      api_base: http://192.168.122.1:11434
+      timeout: 300
+  - model_name: local-good                # 7B offload: qualita' migliore
+    litellm_params:
+      model: ollama_chat/qwen2.5-coder:7b
+      api_base: http://192.168.122.1:11434
+      timeout: 300
+
+  # --- F6: lane BIOME L40S (ADR-0009) ---------------------------------------
+  # Non si parla a nginx in chiaro: `biome-tls` e' lo stunnel client che porta
+  # il certificato mTLS (services-biome/stunnel.conf). Richiede la VPN di ateneo
+  # attiva sull'HOST: vedi il gotcha VM->VPN in docs/BIOME-L40S.md.
+  - model_name: biome-coder
+    litellm_params:
+      model: openai/biome-coder
+      api_base: http://biome-tls:8443/v1
+      api_key: os.environ/VLLM_API_KEY
+      timeout: 600
 litellm_settings:
   callbacks: ["headroom.integrations.litellm_callback.HeadroomCallback"]
   forward_client_headers_to_llm_api: true
@@ -28,6 +56,7 @@ litellm_settings:
     - coding: ["or-pareto-code", "claude-opus-4-8"]
     - smart:  ["or-private", "claude-sonnet-4-6"]
     - cheap:  ["openrouter/openrouter/free", "claude-haiku-4-5-20251001"]
+    - local:  ["local-good", "local-fast"]
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY
   database_url: os.environ/DATABASE_URL

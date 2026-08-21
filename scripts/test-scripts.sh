@@ -20,14 +20,51 @@ done
 python3 -m py_compile scripts/*.py && ok "python compila" || ko "python non compila"
 
 sec "2. Contratto: ogni script supporta --dry-run o è read-only"
-for s in create-vm.sh setup-ollama.sh cleanup-host.sh deploy-all.sh; do
-  grep -q -- '--dry-run' "scripts/$s" && ok "$s espone --dry-run" \
-    || ko "$s senza --dry-run" "gli script che modificano il sistema devono poterlo simulare"
+# Gli script SOLO-LETTURA sono l'eccezione dichiarata; tutti gli altri devono
+# esporre --dry-run. La lista non e' piu' hardcoded: si deriva da scripts/*.sh,
+# cosi' un nuovo script entra automaticamente nel contratto (invariante #9).
+READONLY="detect-hardware.sh devops-audit.sh test-all.sh test-scripts.sh"
+READONLY_PY="audit-integration.py"
+DRYRUN_SCRIPTS=""
+for f in scripts/*.sh; do
+  b=$(basename "$f")
+  case " $READONLY " in *" $b "*)
+    grep -qE 'sudo (rm|systemctl (stop|disable)|mv)' "$f" \
+      && ko "$b dichiarato read-only ma modifica il sistema" || ok "$b è read-only"
+    continue;;
+  esac
+  # Fuori dai commenti: un commento d'uso che cita --dry-run senza che il flag
+  # sia parsato passerebbe il controllo e non simulerebbe niente.
+  if grep -v '^[[:space:]]*#' "$f" | grep -q -- '--dry-run'; then
+    ok "$b espone --dry-run"; DRYRUN_SCRIPTS="$DRYRUN_SCRIPTS $b"
+  else
+    ko "$b senza --dry-run" "gli script che modificano il sistema devono poterlo simulare"
+  fi
 done
-for s in detect-hardware.sh devops-audit.sh test-all.sh; do
-  grep -qE 'sudo (rm|systemctl (stop|disable)|mv)' "scripts/$s" \
-    && ko "$s dichiarato read-only ma modifica il sistema" || ok "$s è read-only"
+
+# Anche gli script python che modificano lo stato devono esporre --dry-run.
+for f in scripts/*.py; do
+  b=$(basename "$f")
+  case " $READONLY_PY " in *" $b "*) ok "$b è read-only"; continue;; esac
+  # In python i docstring non iniziano con '#': togliere i commenti non basta,
+  # il flag va cercato come STRINGA nel codice (add_argument("--dry-run")),
+  # altrimenti un docstring d'uso che lo cita basterebbe a passare.
+  grep -qE "[\"']--dry-run[\"']" "$f" && ok "$b espone --dry-run" \
+    || ko "$b senza --dry-run" "modifica il DB del gateway: deve poterlo simulare"
 done
+
+sec "2b. TC-08: i dry-run completano anche su una macchina vuota"
+# Cercare la stringa '--dry-run' col grep non dimostra nulla: il dry-run va
+# ESEGUITO. È così che si scopre che create-vm.sh moriva su $USER non impostato.
+for b in $DRYRUN_SCRIPTS; do
+  if out=$(env -u USER "scripts/$b" --dry-run 2>&1); then ok "$b --dry-run esce 0"
+  else ko "$b --dry-run fallisce (exit $?)" "$(echo "$out" | tail -3)"; fi
+done
+# sync_openrouter.py e' escluso da 2b per costruzione: il suo dry-run calcola un
+# diff, quindi ha bisogno del catalogo OpenRouter E del gateway. Su una macchina
+# vuota esce 2 ("prerequisiti mancanti"), che e' il comportamento giusto: non e'
+# un crash, e' un rifiuto motivato. Il suo test vero e' F8, livello L5.
+echo -e "  \033[2m–\033[0m sync_openrouter.py --dry-run \033[2m(serve il gateway: test L5, non L1b)\033[0m"
 
 sec "3. Invarianti di sicurezza nel codice"
 # Ollama non deve mai essere bindato su tutte le interfacce
@@ -45,6 +82,30 @@ grep -q 'health/liveliness' scripts/cleanup-host.sh \
 # create-vm --destroy deve chiedere conferma esplicita
 grep -A3 'DESTROY.*=.*1' scripts/create-vm.sh | grep -q 'read -rp' \
   && ok "create-vm --destroy richiede conferma" || ko "--destroy senza conferma"
+# TC-02: nessun config client deve puntare al vecchio proxy headroom (:8787).
+# È la regressione piu' frequente del repo ('headroom wrap' riscrive i config).
+grep -rn ':8787' clients/ 2>/dev/null \
+  && ko "riferimento a :8787 nei config client" "invariante #1: un solo gateway" \
+  || ok "nessun client punta a :8787"
+# Il Dockerfile non deve usare 'pip': l'immagine upstream (Wolfi + venv uv) non
+# ce l'ha. È il bug che teneva rossa la CI da sempre.
+grep -qE '^RUN[[:space:]]+pip[[:space:]]' services/Dockerfile \
+  && ko "Dockerfile usa 'pip'" "l'immagine base non ha pip: usa uv sul venv /app/.venv" \
+  || ok "Dockerfile non usa 'pip' (immagine base senza pip)"
+# I nomi della lane locale devono essere gli stessi ovunque.
+if grep -q 'local-small' scripts/*.sh docs/*.md --exclude=test-scripts.sh 2>/dev/null; then
+  ko "lane locale: 'local-small' convive con 'local-fast'/'local-good'" "un nome solo"
+else ok "lane locale: nomi coerenti (local-fast / local-good)"; fi
+
+# Repo PUBBLICO: nessun identificatore interno nei file versionati.
+# La subnet 192.168.122.0/24 e' esclusa apposta: e' il default di libvirt,
+# uguale ovunque, e gli script la usano davvero (docs/GITHUB-SETUP.md §2).
+# Copre utenti, nomi macchina e domini interni. NON gli IP: distinguerne uno
+# interno da 0.0.0.0 o dalla subnet libvirt richiederebbe un pattern fragile --
+# per quelli vale la regola scritta in GITHUB-SETUP.md, non un grep.
+LEAKS=$(grep -rInE '(@?\bjfs\b|\bermes\b|\.unibo\.it)' --exclude-dir=.git --exclude=test-scripts.sh . 2>/dev/null | grep -viE 'permess|CHANGEME|<dominio' || true)
+[ -z "$LEAKS" ] && ok "nessun identificatore interno versionato (repo pubblico)" \
+  || ko "identificatore interno nei file versionati" "$(echo "$LEAKS" | head -3)"
 
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
@@ -61,7 +122,15 @@ for d in services services-biome; do
     python3 -c "import yaml,sys; yaml.safe_load(open('$d/docker-compose.yml'))" \
       && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
   elif command -v docker >/dev/null 2>&1; then
-    ( cd "$d" && cp -n .env.example .env 2>/dev/null; BIND_IP=127.0.0.1 docker compose config >/dev/null 2>&1 ) \
+    # `docker compose config` richiede un .env vero: --env-file cambia solo
+    # l'interpolazione, non soddisfa la chiave `env_file:` del servizio.
+    # Lo creiamo temporaneamente e lo togliamo SEMPRE: questo script dichiara
+    # di non toccare nulla e deve essere vero anche nel ramo di fallback.
+    # ENVF assoluto: il trap scatta DOPO il cd, un path relativo punterebbe altrove.
+    ( ENVF="$PWD/$d/.env"; TMPENV=0
+      [ -f "$ENVF" ] || { cp "$PWD/$d/.env.example" "$ENVF"; TMPENV=1; }
+      trap '[ "$TMPENV" = 1 ] && rm -f "$ENVF"' EXIT
+      cd "$d" && BIND_IP=127.0.0.1 docker compose config >/dev/null 2>&1 ) \
       && ok "$d/docker-compose.yml valido (via docker compose)" \
       || echo -e "  \033[2m–\033[0m $d/docker-compose.yml non verificabile qui"
   else
@@ -87,6 +156,53 @@ grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
 # config montate read-only
 grep -q ':ro' services/docker-compose.yml && ok "config montata :ro" || ko "config non :ro"
 
+# ADR-0015: un job con `continue-on-error: true` gira ma non puo' fallire.
+# E' come non averlo. `continue-on-error` a livello di STEP resta lecito.
+for wf in .github/workflows/*.yml; do
+  if grep -qE '^\s{4}continue-on-error:\s*true' "$wf"; then
+    ko "$(basename "$wf"): continue-on-error a livello di job" \
+       "ADR-0015: un test che non puo' fallire non e' un test"
+  else
+    ok "$(basename "$wf"): nessun job non-bloccante"
+  fi
+done
+
+# Repo pubblico + runner self-hosted: un trigger `pull_request` su un workflow
+# self-hosted = esecuzione di codice arbitrario sull'host (GITHUB-SETUP.md §4).
+for wf in .github/workflows/*.yml; do
+  grep -q 'self-hosted' "$wf" || continue
+  if grep -qE '^\s+pull_request(_target)?\s*:' "$wf"; then
+    ko "$(basename "$wf"): trigger pull_request su runner self-hosted" \
+       "chiunque apra una PR eseguirebbe codice sull'host"
+  else
+    ok "$(basename "$wf"): self-hosted non innescabile da una PR"
+  fi
+done
+
+# Ogni hostname usato come api_base nel config del gateway deve corrispondere a
+# un servizio del compose (o essere un IP/host esterno). Un `biome-tls` senza
+# servizio non risolve: la lane fallisce al primo uso, non al deploy.
+if python3 -c 'import yaml' 2>/dev/null; then
+  python3 - <<'PYX' && ok "api_base: ogni hostname interno ha un servizio" || ko "api_base punta a un hostname senza servizio"
+import re, sys, yaml
+cfg = yaml.safe_load(open("services/litellm_config.yaml"))
+comp = yaml.safe_load(open("services/docker-compose.yml"))
+services = set(comp.get("services") or {})
+bad = []
+for m in cfg.get("model_list") or []:
+    base = (m.get("litellm_params") or {}).get("api_base") or ""
+    host = re.sub(r"^https?://", "", base).split("/")[0].split(":")[0]
+    if not host or re.match(r"^[\d.]+$", host) or "." in host:
+        continue            # IP o FQDN esterno: fuori dal compose
+    if host not in services:
+        bad.append(f"{m.get('model_name')} -> {host}")
+if bad:
+    print("   ", "; ".join(bad)); sys.exit(1)
+PYX
+else
+  echo -e "  \033[2m–\033[0m api_base non verificabile (pyyaml assente)"
+fi
+
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
   [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"
@@ -97,8 +213,10 @@ done
 [ -f AGENTS.md ] && ok "AGENTS.md presente (contesto per gli agenti)" || ko "AGENTS.md mancante"
 [ -f CLAUDE.md ] && grep -q AGENTS.md CLAUDE.md && ok "CLAUDE.md rimanda ad AGENTS.md (una sola verita')" || ko "CLAUDE.md assente o non allineato"
 # ogni script deve essere citato almeno una volta nei doc
-for s in create-vm setup-ollama restore-test detect-hardware test-all deploy-all; do
-  grep -rq "$s" docs/ README.md && ok "$s documentato" || ko "$s non citato nella documentazione"
+for f in scripts/*.sh scripts/*.py; do
+  b=$(basename "$f"); n="${b%.*}"
+  grep -rq "$n" docs/ README.md AGENTS.md && ok "$n documentato" \
+    || ko "$n non citato nella documentazione"
 done
 
 echo -e "\n\033[36m━━ Esito ━━\033[0m\n  \033[32m✓ $P\033[0m   \033[31m✗ $F\033[0m"

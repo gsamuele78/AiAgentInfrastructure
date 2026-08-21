@@ -14,7 +14,7 @@ Infrastruttura per agenti AI a **maintainer singolo**: un gateway LiteLLM
 lane per dati sensibili, LLM locale e self-hosted BIOME.
 
 ```
-HOST ermes                                   VM KVM
+HOST (workstation)                                   VM KVM
 Claude Code ──abbonamento──► Anthropic       ┌────────────────────────┐
 opencode / OpenChamber ─┐                    │ litellm :4000          │
 Codex ──────────────────┼─127.0.0.1:4000────►│  └─[headroom callback] │
@@ -38,8 +38,8 @@ CI fallisce.
 
 | # | Invariante | Perché |
 |---|---|---|
-| 1 | **Un solo gateway**: nessun client parla direttamente a un provider | ADR-0001 |
-| 2 | Compressione = **callback** dentro LiteLLM, non un proxy davanti | ADR-0003 |
+| 1 | **Un solo gateway**: nessun client parla direttamente a un provider — *eccezione: la lane abbonamento di Claude Code, ADR-0014* | ADR-0001 |
+| 2 | Compressione = **callback** dentro LiteLLM, non un proxy davanti — *stessa eccezione* | ADR-0003 |
 | 3 | Ollama bindato **solo su virbr0**, mai `0.0.0.0` | non ha autenticazione |
 | 4 | postgres **non pubblica porte**; vLLM **su loopback** | least exposure |
 | 5 | Config montate `:ro`; solo DB e workspace scrivibili | immutabilità |
@@ -73,6 +73,7 @@ attenzione continua.
 ./scripts/deploy-all.sh --dry-run     # 8 fasi con checkpoint
 ./scripts/detect-hardware.sh --emit-config
 ./scripts/create-vm.sh                # VM riproducibile (cloud-init)
+./scripts/sync_openrouter.py --dry-run  # catalogo OpenRouter nel DB (OPENROUTER-SYNC.md)
 ./scripts/setup-ollama.sh             # LLM locale configurato e verificato
 ./scripts/restore-test.sh             # TC-05: il backup è restorabile?
 ```
@@ -95,17 +96,37 @@ attenzione continua.
 | `headroom wrap` riscrive i config dei client | i tool tornano a `:8787` | `headroom unwrap`, poi `audit-integration.py` |
 | Alias MCP lunghi (`github.com/...`) | "Model tried to call unavailable tool" | alias corti: `reason`, `mem`, `fs`, `ctx7` |
 | `ANTHROPIC_API_KEY` residua nell'ambiente | fatturazione a consumo **silenziosa** invece dell'abbonamento | `unset`; verifica con `/status` |
+| `cleanup-host.sh` senza `KEEP_HEADROOM=1` | Claude Code muto: la lane B punta a una porta chiusa | ADR-0014; riattiva `headroom.service` |
 | IP della VM cambia | gateway "giù" senza motivo | riserva DHCP (`VM-KVM-GUIDE.md`) |
 | `shm_size` mancante su vLLM | crash oscuro all'avvio | `shm_size: 16gb` |
 | `proxy_buffering` attivo in nginx | streaming che arriva in blocco | `proxy_buffering off` |
 | File sourced senza shebang | shellcheck SC2148 | `# shellcheck shell=bash` |
+| `pip install` nel Dockerfile | build KO: `pip: not found` | l'immagine upstream è Wolfi + venv `uv`: installa con `uv pip install --python /app/.venv/bin/python` |
+| `headroom-ai[all]` su linux | immagine da ~3 GB (torch) | il callback usa solo il core: `HEADROOM_EXTRAS` vuoto |
+| `ports:` + `network_mode: service:` | `docker compose config` passa, `up` no | pubblica la porta sul servizio che possiede il netns |
+| `$USER` non impostato | `set -u` uccide il dry-run | `${USER:-$(id -un)}` |
+| `docker compose --env-file X config` al posto di un `.env` vero | `env file .../.env not found` | `--env-file` cambia solo l'interpolazione, non soddisfa la chiave `env_file:` del servizio: il file deve esistere |
+| `/model/new` usato per aggiornare un modello | riga duplicata o errore | non e' un upsert (`table.create`): per modificare serve `/model/update` |
+| pricing letto da `model_info` | il diff non vede mai un cambiamento | `/model/info` riempie `model_info` con la cost map: il prezzo si scrive e si rilegge da `litellm_params` |
+| `set -e` tolto per aggiungere un `run()` | lo script esce 0 pur avendo fallito | controlla a mano i comandi critici (vedi `backup-db.sh`) |
+| `api_base` verso un hostname senza servizio nel compose | la lane fallisce al primo uso, non al deploy | `test-scripts.sh` §4 lo verifica |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 
 1. Immagine LiteLLM su tag mobile `main-stable` → pinnare un digest sha256
 2. Nessun alerting (accettabile per uso personale)
-3. Credenziali storiche esposte in un file 664 → **ruotarle**
+3. Credenziali storiche esposte in un file 664 → **ruotarle** (non risulta fatto)
 4. Nessuno scan CVE delle immagini
+5. `sync_openrouter.py` esiste ma **non è mai stato eseguito contro OpenRouter
+   reale**: la logica è testata contro un gateway finto che replica le semantiche
+   verificate nel sorgente di LiteLLM, non contro il servizio
+6. **Lo stack non è mai stato deployato**: nessun ✅ del repo significa "visto
+   funzionare". Il primo deploy è anche il primo test reale della catena
+7. Da ADR-0015 `functional.yml` può fallire davvero, ma **a laptop spento il
+   run settimanale risulta rosso**: se diventa costante, la decisione va rivista
+8. Il repo è **pubblico**: mai aggiungere `pull_request` ai trigger di un
+   workflow `self-hosted` (`GITHUB-SETUP.md` §4), mai versionare FQDN interni,
+   nomi macchina o path personali — `test-scripts.sh` §3 lo verifica
 
 Elenco completo e razionale in `docs/DEVOPS-AUDIT.md`.
 

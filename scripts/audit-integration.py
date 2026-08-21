@@ -89,7 +89,8 @@ cl=rj(HOME/".claude"/"settings.json")
 if cl:
     b=(cl.get("env") or {}).get("ANTHROPIC_BASE_URL","")
     if "4000" in b: L("PASS","claude code -> :4000")
-    elif "8787" in b: L("WARN","claude code -> :8787","ok se headroom-optional -> litellm")
+    elif "8787" in b: L("INFO","claude code -> :8787 (variante B, ADR-0014)",
+                        "ammesso solo per la lane abbonamento; l'upstream deve essere Anthropic")
     elif b: L("FAIL",f"claude code -> {b}","repointa a :4000")
 if os.environ.get("ANTHROPIC_API_KEY"):
     L("WARN","ANTHROPIC_API_KEY in env: SCAVALCA l'abbonamento","unset (DUAL-AUTH.md)")
@@ -108,9 +109,13 @@ def active(u,user=True):
     c=["systemctl"]+(["--user"] if user else [])+["is-active",u]
     try: return subprocess.run(c,capture_output=True,text=True,timeout=5).stdout.strip()=="active"
     except Exception: return False
-L("WARN" if active("headroom.service") else "PASS",
-  "headroom.service attivo" if active("headroom.service") else "headroom proxy non attivo",
-  "non serve col callback: scripts/cleanup-host.sh" if active("headroom.service") else "")
+# ADR-0014: headroom.service attivo e' legittimo SE e' la lane abbonamento di
+# Claude Code (variante B). Non e' piu' un residuo da rimuovere, ma va guardato:
+# con upstream OpenRouter scavalcherebbe LiteLLM (il bug di CURRENT-STATE.md).
+L("INFO" if active("headroom.service") else "PASS",
+  "headroom.service attivo (variante B?)" if active("headroom.service") else "headroom proxy non attivo",
+  "ok se e' la lane abbonamento (ADR-0014); verifica l'upstream: DEVE essere api.anthropic.com"
+  if active("headroom.service") else "")
 L("WARN" if active("postgresql.service",False) else "PASS",
   "postgresql host attivo" if active("postgresql.service",False) else "postgres host non attivo",
   "verificato litellm-only: systemd/postgres-decision.md" if active("postgresql.service",False) else "")

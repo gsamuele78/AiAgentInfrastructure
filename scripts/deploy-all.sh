@@ -25,8 +25,8 @@ ask "Creare la VM ora con create-vm.sh (cloud-init, automatico)?" \
   && run "./create-vm.sh" || warn "creazione VM saltata (manuale: docs/VM-DEBIAN-INSTALL.md)"
 cat <<'X'
   Poi, deploy dei servizi nella VM:
-    scp -r services/ jfs@<VM_IP>:~/llm-services/
-    ssh jfs@<VM_IP>; cd ~/llm-services
+    scp -r services/ $VM_USER@<VM_IP>:~/llm-services/
+    ssh $VM_USER@<VM_IP>; cd ~/llm-services
     cp .env.example .env && chmod 600 .env && $EDITOR .env
     docker compose build && docker compose up -d
     curl -s http://127.0.0.1:4000/health/liveliness
@@ -51,7 +51,7 @@ if ph 3; then say "FASE 3 — Pulizia host"
 run "./cleanup-host.sh --dry-run"; ask "Applicare?" && run "./cleanup-host.sh" || warn saltata; fi
 
 if ph 4; then say "FASE 4 — Tooling (Serena, graphify, mattpocock, AgentShield)"
-run "./stack-selective-install.sh '${REPO:-$PWD}'"; ok "tooling installato"; fi
+run "./stack-selective-install.sh '${REPO:-$HERE/..}'"; ok "tooling installato"; fi
 
 if ph 5; then say "FASE 5 — Doppia autenticazione"
 cat <<'X'
@@ -62,7 +62,8 @@ cat <<'X'
     (C) via LiteLLM : BASE_URL=:4000 + ANTHROPIC_CUSTOM_HEADERS
   SEMPRE:  unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 X
-run "echo 'source $HERE/../clients/shell-env.sh' >> ~/.bashrc"
+# idempotente: rilanciare la fase non deve duplicare la riga in .bashrc
+run "grep -qF 'clients/shell-env.sh' ~/.bashrc 2>/dev/null || echo 'source $HERE/../clients/shell-env.sh' >> ~/.bashrc"
 ask "Fatto?" && ok "dual-auth pronta" || warn "da completare"; fi
 
 if ph 6; then say "FASE 6 — LLM locale (opzionale)"
@@ -78,7 +79,7 @@ run "./devops-audit.sh || true"; run "./audit-integration.py || true"; run "./te
 if ph 8; then say "FASE 8 — Baseline, backup e TEST del restore"
 cat <<'X'
   virsh -c qemu:///system snapshot-create-as llm-vm baseline --description "stack ok"
-  ssh jfs@<VM_IP> 'cd ~/llm-services && ./backup-db.sh'
+  ssh $VM_USER@<VM_IP> 'cd ~/llm-services && ./backup-db.sh'
   ./restore-test.sh          # TC-05: OBBLIGATORIO almeno una volta
 
   Nel repo, prima sessione:

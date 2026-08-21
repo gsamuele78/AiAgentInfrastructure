@@ -20,7 +20,9 @@ VM_IP="${VM_IP:-192.168.122.50}"
 VM_RAM_MB="${VM_RAM_MB:-4096}"
 VM_VCPU="${VM_VCPU:-2}"
 VM_DISK_GB="${VM_DISK_GB:-20}"
-VM_USER="${VM_USER:-$USER}"
+# $USER puo' non essere impostato (cron, container, CI): fallback su id -un,
+# altrimenti `set -u` fa fallire il dry-run su una macchina pulita (TC-08).
+VM_USER="${VM_USER:-${USER:-$(id -un)}}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/id_ed25519.pub}"
 POOL_DIR="${POOL_DIR:-/var/lib/libvirt/images}"
 NET="${NET:-default}"
@@ -33,6 +35,7 @@ for a in "$@"; do case "$a" in --dry-run) DRY=1;; --destroy) DESTROY=1;; esac; d
 run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
 say(){ echo -e "\n\033[36m━━ $* ━━\033[0m"; }
 ok(){ echo -e "  \033[32m✓\033[0m $*"; }
+warn(){ echo -e "  \033[33m!\033[0m $*"; }
 die(){ echo -e "  \033[31m✗\033[0m $*" >&2; exit 1; }
 
 # ---------------------------------------------------------------- destroy
@@ -46,18 +49,27 @@ if [ "$DESTROY" = 1 ]; then
 fi
 
 # ---------------------------------------------------------------- checks
+# TC-08: in --dry-run un prerequisito mancante e' un AVVISO, non un errore.
+# Il dry-run deve completare anche su una macchina che non ha nulla installato:
+# serve a leggere cosa farebbe, non a verificare che si possa fare.
+miss(){ if [ "$DRY" = 1 ]; then warn "$*"; else die "$*"; fi; }
+
 say "1. Prerequisiti"
+MISSING=0
 for t in virt-install virsh qemu-img cloud-localds wget; do
-  command -v "$t" >/dev/null || die "manca '$t' — sudo apt install -y libvirt-daemon-system virtinst cloud-image-utils qemu-utils wget"
+  command -v "$t" >/dev/null || { MISSING=1; miss "manca '$t' — sudo apt install -y libvirt-daemon-system virtinst cloud-image-utils qemu-utils wget"; }
 done
-ok "strumenti presenti"
-[ -r "$SSH_KEY" ] || die "chiave SSH non trovata: $SSH_KEY  (ssh-keygen -t ed25519)"
-ok "chiave SSH: $SSH_KEY"
-virsh -c qemu:///system net-info "$NET" >/dev/null 2>&1 || die "rete libvirt '$NET' assente"
-virsh -c qemu:///system net-info "$NET" | grep -q 'Active:.*yes' || run "virsh -c qemu:///system net-start $NET"
-ok "rete '$NET' attiva"
-if virsh -c qemu:///system dominfo "$VM_NAME" >/dev/null 2>&1; then
-  die "la VM '$VM_NAME' esiste già. Usa --destroy oppure VM_NAME=altro"
+[ "$MISSING" = 0 ] && ok "strumenti presenti"
+[ -r "$SSH_KEY" ] && ok "chiave SSH: $SSH_KEY" \
+  || miss "chiave SSH non trovata: $SSH_KEY  (ssh-keygen -t ed25519)"
+if command -v virsh >/dev/null 2>&1; then
+  virsh -c qemu:///system net-info "$NET" >/dev/null 2>&1 || miss "rete libvirt '$NET' assente"
+  virsh -c qemu:///system net-info "$NET" 2>/dev/null | grep -q 'Active:.*yes' \
+    || run "virsh -c qemu:///system net-start $NET"
+  ok "rete '$NET' attiva"
+  if virsh -c qemu:///system dominfo "$VM_NAME" >/dev/null 2>&1; then
+    die "la VM '$VM_NAME' esiste già. Usa --destroy oppure VM_NAME=altro"
+  fi
 fi
 
 # ---------------------------------------------------------------- image
@@ -79,7 +91,7 @@ ok "$DISK (backing file: immagine base, thin)"
 # ---------------------------------------------------------------- cloud-init
 say "4. cloud-init (utente, docker, hardening)"
 SEED_DIR=$(mktemp -d); trap 'rm -rf "$SEED_DIR"' EXIT
-PUBKEY=$(cat "$SSH_KEY")
+PUBKEY=$(cat "$SSH_KEY" 2>/dev/null || echo "ssh-ed25519 CHIAVE-ASSENTE (dry-run)")
 cat > "$SEED_DIR/user-data" <<CIEOF
 #cloud-config
 hostname: ${VM_NAME}
@@ -155,7 +167,7 @@ ok "seed cloud-init generato"
 # ---------------------------------------------------------------- ip riservato
 say "5. Riserva DHCP (IP stabile — vedi docs/VM-KVM-GUIDE.md)"
 MAC=$(printf '52:54:00:%02x:%02x:%02x' $((RANDOM%256)) $((RANDOM%256)) $((RANDOM%256)))
-if virsh -c qemu:///system net-dumpxml "$NET" | grep -q "ip='$VM_IP'"; then
+if virsh -c qemu:///system net-dumpxml "$NET" 2>/dev/null | grep -q "ip='$VM_IP'"; then
   echo "  riserva per $VM_IP già presente: la sostituisco"
   run "virsh -c qemu:///system net-update $NET delete ip-dhcp-host \"<host ip='$VM_IP'/>\" --live --config || true"
 fi

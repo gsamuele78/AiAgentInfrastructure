@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Pulizia della configurazione host (headroom proxy, litellm pipx, postgres).
 # Non distruttivo: stop/disable + backup. --dry-run disponibile.
+#   KEEP_HEADROOM=1  conserva headroom.service (variante B di DUAL-AUTH, ADR-0014)
 set -uo pipefail
 DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
 run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
@@ -15,9 +16,19 @@ else
   [ "$DRY" = 0 ] && { read -rp "  Procedere comunque? [y/N] " a; [ "$a" = y ] || exit 1; }
 fi
 say "1) headroom proxy standalone"
-run "systemctl --user disable --now headroom.service 2>/dev/null || true"
-run "mv ~/.config/systemd/user/headroom.service ~/headroom.service.bak-$(ts) 2>/dev/null || true"
-run "rm -f ~/.config/systemd/user/.#headroom.service*"
+# ADR-0014: la variante B di DUAL-AUTH usa headroom.service come proxy per la
+# SOLA lane abbonamento di Claude Code. Rimuoverlo la spegne. KEEP_HEADROOM=1
+# conserva il servizio e toglie solo i wrap sui client, che restano sul gateway.
+if [ "${KEEP_HEADROOM:-0}" = 1 ]; then
+  echo "  KEEP_HEADROOM=1: headroom.service conservato (variante B, ADR-0014)"
+  echo "  verifica che l'upstream sia api.anthropic.com e NON OpenRouter"
+else
+  run "systemctl --user disable --now headroom.service 2>/dev/null || true"
+  run "mv ~/.config/systemd/user/headroom.service ~/headroom.service.bak-$(ts) 2>/dev/null || true"
+  run "rm -f ~/.config/systemd/user/.#headroom.service*"
+fi
+# In ogni caso i client tornano al gateway: l'invariante #1 non ha eccezioni
+# per opencode e codex (ADR-0014, limite 2).
 run "headroom unwrap opencode 2>/dev/null || true"
 run "headroom unwrap codex 2>/dev/null || true"
 say "2) litellm pipx (resta INSTALLATO come fallback)"

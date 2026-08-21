@@ -19,8 +19,8 @@ virsh -c qemu:///system snapshot-create-as llm-vm clean-install
 ```
 *Manuale* (fallback): `VM-DEBIAN-INSTALL.md` + `VM-KVM-GUIDE.md`. Poi in entrambi i casi:
 ```bash
-scp -r services/ jfs@<VM_IP>:~/llm-services/
-ssh jfs@<VM_IP>; cd ~/llm-services
+scp -r services/ $VM_USER@<VM_IP>:~/llm-services/
+ssh $VM_USER@<VM_IP>; cd ~/llm-services
 cp .env.example .env && chmod 600 .env && $EDITOR .env    # chiavi NUOVE
 docker compose build && docker compose up -d
 curl -s http://127.0.0.1:4000/health/liveliness

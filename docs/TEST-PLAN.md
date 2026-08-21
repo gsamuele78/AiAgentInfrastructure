@@ -8,7 +8,7 @@
 | L2 Build | immagine + gate callback | CI `validate.yml` | ✅ |
 | L3 Config | client puntano dove devono | `audit-integration.py` | ✅ |
 | L4 Infra | best practice deploy | `devops-audit.sh` | ✅ |
-| L5 Funzionale | catena reale, compressione | `test-all.sh` | ✅ (runner self-hosted) |
+| L5 Funzionale | catena reale, compressione | `test-all.sh` | ✅ runner self-hosted, **bloccante** (ADR-0015) |
 | L6 Manuale | auth, restore, snapshot | checklist | ❌ |
 
 ## Matrice requisiti → test
@@ -18,10 +18,10 @@
 | F2 | `test-all.sh gateway` — alias coding/smart/cheap | L5 |
 | F3 | `test-all.sh compress` — TC-01 | L5 |
 | F4 | header provider OpenRouter | L6 |
-| F5 | `test-all.sh local` | L5 |
-| F6 | `test-all.sh biome` | L5 |
+| F5 | `test-all.sh local` — verifica che Ollama risponda; `local-fast`/`local-good` sono nel config versionato ma il test **non** verifica che il gateway li instradi | L5 |
+| F6 | `test-all.sh biome` — `biome-coder` è nel config versionato; il test resta `skip` se il gateway non è raggiungibile o la VPN è giù | L5 |
 | F7 | `/spend/logs` | L5 |
-| F8 | `sync_openrouter.py --dry-run` | L5 |
+| F8 | `sync_openrouter.py --dry-run` — vedi `OPENROUTER-SYNC.md` | L5 |
 | F9 | `/status` in Claude Code — TC-04 | L6 |
 | N1 | `devops-audit.sh` §2 + CI `secrets` | L1/L4 |
 | N3 | TC-05 restore + TC-06 snapshot | L6 |
@@ -42,6 +42,13 @@ nessun segreto sia hardcoded. Gira su runner GitHub: nessuna dipendenza dall'hos
 `--dry-run` e deve completarlo **anche su una macchina vuota**. Se un dry-run
 crasha, crasherebbe anche l'esecuzione reale.
 
+> Fino al 2026-08-21 questo caso era verificato con un `grep -- '--dry-run'` su
+> una lista di 4 script scritta a mano: cercare la stringa non dimostra che il
+> dry-run funzioni, e infatti `create-vm.sh --dry-run` usciva 1 (`USER: unbound
+> variable`, poi `die` sui prerequisiti). Ora `test-scripts.sh` §2 deriva la
+> lista da `scripts/*.sh` — l'unica eccezione sono gli script dichiarati
+> read-only — e §2b **esegue** ogni dry-run con `env -u USER`.
+
 ## Casi critici
 **TC-01 Compressione** — payload JSON 400 righe; atteso `prompt_tokens` ≪ payload
 grezzo. Fallimento probabile: callback non caricato (il gate build lo intercetta).
@@ -58,7 +65,8 @@ la fatturazione: per questo è un test dedicato.
 
 **TC-05 Restore del backup** — `restore-test.sh`: dump → DB scratch → verifica
 tabelle → cleanup. **Obbligatorio almeno una volta.** Un backup non testato non è
-un backup. Automatizzato nella CI `functional.yml`.
+un backup. Girava in CI `functional.yml`, ma vedi il limite qui sotto: il job non
+può fallire, quindi finora "automatizzato" non voleva dire "verificato".
 
 **TC-06 Rollback via snapshot** — snapshot → modifica distruttiva → revert →
 `test-all.sh`. Atteso < 5 min.
@@ -69,6 +77,48 @@ un backup. Automatizzato nella CI `functional.yml`.
 ./scripts/devops-audit.sh && ./scripts/audit-integration.py && ./scripts/test-all.sh
 ./scripts/restore-test.sh        # TC-05
 ```
+
+## I test funzionali possono fallire (ADR-0015)
+`functional.yml` **non ha più** `continue-on-error: true` sul job. Fino al
+2026-08-21 ce l'aveva, e TC-01, TC-02, TC-04 e TC-05 giravano senza poter
+fallire: un test che non può fallire non è un test. È così che la modalità
+locale rotta di `restore-test.sh` è passata inosservata.
+
+Il prezzo, dichiarato in ADR-0015: **a laptop spento il run settimanale risulta
+rosso**. Un rosso «no runner» non è un rosso «test fallito» — si distinguono
+aprendo il run. `functional` non è fra gli status check richiesti su `main`
+(`GITHUB-SETUP.md` §2: `syntax`, `secrets`, `docs`), quindi non blocca i merge:
+è un segnale da guardare, non un cancello. Se il rosso diventa costante perché
+il laptop è sempre spento, la decisione va rivista, non subita.
+
+**I guard sono verificati per mutazione.** Un test che non puo' fallire non
+serve a niente, e non basta che sia verde: va visto fallire. Il 2026-08-21 il
+guard anti-leak per il repo pubblico e' stato scoperto essere un **no-op** —
+una continuazione di riga scritta `\\` invece di `\` faceva cercare a grep un
+file inesistente, e la seconda meta' del comando finiva in `2>/dev/null`.
+Passava sempre. Da allora ogni nuovo controllo di `test-scripts.sh` si verifica
+piantando il difetto che deve intercettare e controllando che il test diventi
+rosso: identificatore interno versionato, `continue-on-error` a livello di job,
+trigger `pull_request` su workflow self-hosted, `pip` nel Dockerfile, `:8787`
+nei client, `--dry-run` mancante. Due controlli su sei erano difettosi e sono
+stati scoperti cosi'.
+
+**TC-08 e `sync_openrouter.py`:** il dry-run di questo script calcola un diff,
+quindi ha bisogno del catalogo OpenRouter *e* del gateway. Su una macchina vuota
+esce `2` («prerequisiti mancanti»), che è il comportamento corretto — un rifiuto
+motivato, non un crash — ed è per questo che `test-scripts.sh` §2b lo salta
+esplicitamente invece di eseguirlo. Il suo test vero è F8, livello L5.
+
+## Nota: gli alias `coding` / `smart` / `cheap`
+Non sono in `model_list`: esistono solo come chiavi di `litellm_settings.fallbacks`.
+Funzionano perché il primo tentativo su un model group inesistente solleva
+un'eccezione che `Router.async_function_with_fallbacks` intercetta per cercare i
+fallback. Conseguenze: **non compaiono in `/v1/models`** (per questo `test-all.sh`
+li segna `skip` e non `fail`), e il comportamento dipende da un dettaglio
+implementativo di LiteLLM. Il test che conta è la completion reale su `cheap` in
+`test-all.sh gateway`. Se si vuole un contratto esplicito, l'alternativa è
+`router_settings.model_group_alias` — cambia il routing, quindi va deciso, non
+subito.
 
 ## Criteri di uscita
 L1–L5 senza fallimenti · TC-05 eseguito con esito positivo · TC-04 verificato ·

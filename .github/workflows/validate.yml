@@ -67,11 +67,15 @@ jobs:
       - name: Dry-run degli script che modificano il sistema
         # Devono uscire puliti anche su una macchina che non ha nulla:
         # se un dry-run crasha, crasherebbe anche l'esecuzione reale.
+        # env -u USER: su un runner USER e' impostato, su un container no.
+        # create-vm.sh moriva proprio li' ("USER: unbound variable").
         run: |
           ./scripts/detect-hardware.sh > /dev/null
-          ./scripts/setup-ollama.sh --dry-run > /dev/null
-          ./scripts/cleanup-host.sh --dry-run > /dev/null
-          ./scripts/deploy-all.sh --dry-run > /dev/null
+          for s in setup-ollama cleanup-host deploy-all create-vm restore-test \
+                   backup-db stack-selective-install; do
+            env -u USER "./scripts/$s.sh" --dry-run > /dev/null \
+              || { echo "::error::$s.sh --dry-run fallito"; exit 1; }
+          done
           echo "tutti i dry-run completati senza errori"
 
   build:
@@ -79,6 +83,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Il .env va creato davvero: `--env-file` cambia solo l'interpolazione
+      # delle variabili, NON soddisfa la chiave `env_file:` del servizio, che
+      # richiede il file su disco. Il workspace del runner e' effimero.
       - name: compose config
         working-directory: services
         run: cp .env.example .env && docker compose config >/dev/null && echo OK

@@ -27,7 +27,7 @@ Confine netto:
 | | `AiAgentInfrastructure` (questo) | `BiomeLLMService` (nuovo) |
 |---|---|---|
 | Utenti | 1 (il maintainer) | N ricercatori, poi utenti k8s |
-| Contiene | dettagli host personali (`/home/jfs`, IP interni, `CURRENT-STATE.md`) | solo configurazione istituzionale |
+| Contiene | dettagli host personali (`/home/$USER`, IP interni, `CURRENT-STATE.md`) | solo configurazione istituzionale |
 | SLA | nessuno | implicito verso i colleghi |
 | Compliance | — | GDPR, policy di ateneo, audit |
 | Visibilità | privata consigliata | da decidere col gruppo |

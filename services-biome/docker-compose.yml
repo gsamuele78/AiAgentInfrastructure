@@ -8,8 +8,12 @@ services:
     image: "vllm/vllm-openai:${VLLM_TAG:-latest}"   # PSE: pinna un digest
     container_name: biome-vllm
     restart: unless-stopped
-    # SOLO loopback: nginx è l'unico ingresso.
-    ports: ["127.0.0.1:8000:8000"]
+    # nginx gira nello STESSO network namespace (network_mode: service:vllm),
+    # quindi le porte di ENTRAMBI si dichiarano qui: Docker rifiuta il port
+    # publishing su un servizio con network_mode "service:"/"container:".
+    #   8000 -> vLLM, SOLO loopback: nginx è l'unico ingresso.
+    #   8443 -> nginx mTLS, solo sull'IP interno/VPN, mai su 0.0.0.0.
+    ports: ["127.0.0.1:8000:8000", "${BIND_IP}:8443:8443"]
     env_file: .env
     environment:
       HUGGING_FACE_HUB_TOKEN: ${HF_TOKEN}
@@ -52,8 +56,8 @@ services:
     image: nginx:1.27-alpine
     container_name: biome-nginx
     restart: unless-stopped
-    # Ascolta SOLO sull'IP interno/VPN, mai su 0.0.0.0.
-    ports: ["${BIND_IP}:8443:8443"]
+    # NIENTE "ports:" qui: la porta 8443 è pubblicata dal servizio vllm, di cui
+    # questo container condivide il network namespace (vedi network_mode sotto).
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./certs:/etc/nginx/certs:ro     # server.crt/key + step-root.crt

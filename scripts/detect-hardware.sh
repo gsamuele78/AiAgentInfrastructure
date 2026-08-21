@@ -84,7 +84,7 @@ Environment="OLLAMA_MAX_LOADED_MODELS=1"
 $([ "$CHASSIS" = laptop ] && echo 'Environment="OLLAMA_KEEP_ALIVE=2m"')
 
 # --- services/litellm_config.yaml ---
-  - model_name: local-small
+  - model_name: local-fast
     litellm_params:
       model: ollama_chat/${OLL}
       api_base: http://${BRIP}:11434
@@ -94,4 +94,9 @@ ollama pull ${OLL}
 $([ -n "$NGPU_LAYERS" ] && echo "# offload parziale:  /set parameter num_gpu ${NGPU_LAYERS}")
 EOC
 fi
-echo -e "\n\033[2mRilancia con --emit-config per i frammenti.\033[0m"
+if [ "$EMIT" = 1 ] && [ -z "$OLL" ]; then
+  echo -e "\n\033[2m--emit-config: nessun frammento da emettere (i frammenti Ollama\033[0m"
+  echo -e "\033[2msi generano solo con una GPU rilevata; su questa macchina non ce n'e').\033[0m"
+elif [ "$EMIT" = 0 ]; then
+  echo -e "\n\033[2mRilancia con --emit-config per i frammenti.\033[0m"
+fi

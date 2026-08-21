@@ -33,7 +33,7 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 ├── AGENTS.md                 ★ contesto per agenti AI (+ CLAUDE.md che vi rimanda)
 ├── docs/
 │   ├── PRD.md                requisiti, scope, non-goals, accettazione
-│   ├── adr/                  12 Architecture Decision Records
+│   ├── adr/                  15 Architecture Decision Records
 │   ├── TEST-PLAN.md          matrice requisiti→test, casi critici
 │   ├── INSTALL_GUIDE.md      ★ deploy passo-passo
 │   ├── DUAL-AUTH.md          abbonamento Claude Pro + gateway insieme
@@ -44,12 +44,13 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 │   ├── VM-KVM-GUIDE.md       rete, riserva DHCP, snapshot
 │   ├── DOCKER-HARDENING.md   data-root, log driver, journald
 │   ├── GPU-LOCAL-LLM.md      Ollama su A2000 (4 GB) + offload
+│   ├── OPENROUTER-SYNC.md    catalogo OpenRouter nel DB (F8)
 │   ├── BIOME-L40S.md         vLLM + mTLS step-ca
 │   ├── GITHUB-SETUP.md       primo push, branch protection, runner
 │   ├── ARCHITECTURE.md · TOOLS-STACK.md · MEMORY-POLICY.md
 │   ├── DEVOPS-AUDIT.md       best practice + debito riconosciuto
 │   └── CURRENT-STATE.md      stato verificato dell'host
-├── services/                 gira nella VM (compose + Dockerfile + config)
+├── services/                 gira nella VM (compose + Dockerfile + config + sidecar BIOME)
 ├── services-biome/           gira sul server BIOME (vLLM + nginx mTLS + stunnel)
 ├── clients/                  opencode.jsonc, claude, codex, shell-env
 ├── systemd/                  forward VM + note di rimozione
