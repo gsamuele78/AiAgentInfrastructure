@@ -5,7 +5,7 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 | Area | Stato | Note |
 |---|---|---|
 | IaC / config dichiarative | ✅ | compose, YAML, unit file, tutti in repo |
-| Build riproducibile | ✅ | Dockerfile + gate `import HeadroomCallback` |
+| Build riproducibile | ⚠️ | Dockerfile + gate `import HeadroomCallback`. **La build non è mai passata in CI** fino al 2026-08-21: l'immagine upstream (Wolfi + venv `uv`) non ha `pip`. Corretto; da confermare col primo run verde. |
 | Pin versioni | ⚠️ | `main-stable` è mobile → **pinna un digest sha256** |
 | Config immutabile | ✅ | `litellm_config.yaml:ro` |
 | Segreti fuori dai config | ✅ | solo `os.environ/` |
@@ -19,20 +19,36 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 | Metriche | ⚠️ | Prometheus disponibile, non attivo |
 | Alerting | ❌ | **debito reale** se il gateway diventa critico |
 | Backup DB | ✅ | `backup-db.sh` + retention 14 |
-| **Restore testato** | ✅ | `restore-test.sh` (TC-05) + CI functional |
+| **Restore testato** | ❌ | `restore-test.sh` esiste, ma il registro in `TEST-PLAN.md` è **vuoto**: mai eseguito. La modalità locale era rotta (compose cercato nella cwd) — corretta. |
 | Snapshot VM | ✅ | `virsh snapshot-create-as` |
-| ADR / decisioni | ✅ | `docs/adr/` 10 ADR, con superseded |
+| ADR / decisioni | ✅ | `docs/adr/` 13 ADR, con superseded (0002→0003, 0007→0013) |
 | PRD / requisiti | ✅ | `docs/PRD.md` |
 | Test plan | ✅ | `docs/TEST-PLAN.md` |
-| CI | ✅ | `validate.yml` + `functional.yml` |
+| CI | ⚠️ | `validate.yml` + `functional.yml`. `functional` ha `continue-on-error: true` sul job: **i test L5 non possono far fallire nulla** (ADR-0010 lo motiva col laptop spento, ma è un limite reale, non un dettaglio). |
 | CD | ❌ | **per scelta** (ADR-0010) |
 | Scan CVE immagini | ⚠️ | non implementato |
 
 ## Debito riconosciuto (priorità)
 1. **Immagine su tag mobile** → pinna `main-stable@sha256:...`
+   (digest misurato il 2026-08-21: `sha256:4b3226f4ccd7793d7dca6862d3681604d7ab640d8d6285be6061fd48514e6e71`;
+   richiede `FROM ...@sha256:` invece di `:${TAG}`)
 2. **Nessun alerting** → minimo utile: `callbacks: ["prometheus"]` + scrape
-3. **Rotazione credenziali** → le vecchie erano in un file 664: rigenerale
+3. **Rotazione credenziali** → le vecchie erano in un file 664: rigenerale.
+   **Non risulta fatto**: nessuna traccia nel repo.
 4. **Nessuno scan CVE** → valuta `trivy` nella CI
+5. **`sync_openrouter.py` non esiste** → ADR-0004 decide la riconciliazione dei
+   modelli via `/model/new` + `/model/delete`, ma lo script non è mai stato
+   scritto. F8 del PRD non è implementato e il suo test (TEST-PLAN) non è
+   eseguibile. Oggi vale solo il wildcard `openrouter/*`, con i limiti che
+   l'ADR stesso elenca (dropdown vuoto, niente pricing).
+6. **Lane locale (F5) e BIOME (F6) non sono nel config versionato** →
+   `local-fast`/`local-good` e `biome-coder` vivono solo in `GPU-LOCAL-LLM.md`
+   e `BIOME-L40S.md`, più l'output da incollare a mano di `setup-ollama.sh`.
+   Chi fa deploy da zero seguendo il repo NON ottiene quelle lane.
+7. **Test funzionali non bloccanti** → `functional.yml` ha
+   `continue-on-error: true` sul job: TC-01, TC-02, TC-04 e TC-05 girano ma non
+   possono fallire. Cambiarlo tocca una conseguenza dichiarata in ADR-0010 →
+   serve un nuovo ADR, non una modifica al volo.
 
 ## Non implementato *per scelta* (non è debito)
 Secret manager (Vault/SOPS) · CD automatico · HA/replica · container non-root

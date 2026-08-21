@@ -20,13 +20,31 @@ done
 python3 -m py_compile scripts/*.py && ok "python compila" || ko "python non compila"
 
 sec "2. Contratto: ogni script supporta --dry-run o è read-only"
-for s in create-vm.sh setup-ollama.sh cleanup-host.sh deploy-all.sh; do
-  grep -q -- '--dry-run' "scripts/$s" && ok "$s espone --dry-run" \
-    || ko "$s senza --dry-run" "gli script che modificano il sistema devono poterlo simulare"
+# Gli script SOLO-LETTURA sono l'eccezione dichiarata; tutti gli altri devono
+# esporre --dry-run. La lista non e' piu' hardcoded: si deriva da scripts/*.sh,
+# cosi' un nuovo script entra automaticamente nel contratto (invariante #9).
+READONLY="detect-hardware.sh devops-audit.sh test-all.sh test-scripts.sh"
+DRYRUN_SCRIPTS=""
+for f in scripts/*.sh; do
+  b=$(basename "$f")
+  case " $READONLY " in *" $b "*)
+    grep -qE 'sudo (rm|systemctl (stop|disable)|mv)' "$f" \
+      && ko "$b dichiarato read-only ma modifica il sistema" || ok "$b è read-only"
+    continue;;
+  esac
+  if grep -q -- '--dry-run' "$f"; then
+    ok "$b espone --dry-run"; DRYRUN_SCRIPTS="$DRYRUN_SCRIPTS $b"
+  else
+    ko "$b senza --dry-run" "gli script che modificano il sistema devono poterlo simulare"
+  fi
 done
-for s in detect-hardware.sh devops-audit.sh test-all.sh; do
-  grep -qE 'sudo (rm|systemctl (stop|disable)|mv)' "scripts/$s" \
-    && ko "$s dichiarato read-only ma modifica il sistema" || ok "$s è read-only"
+
+sec "2b. TC-08: i dry-run completano anche su una macchina vuota"
+# Cercare la stringa '--dry-run' col grep non dimostra nulla: il dry-run va
+# ESEGUITO. È così che si scopre che create-vm.sh moriva su $USER non impostato.
+for b in $DRYRUN_SCRIPTS; do
+  if out=$(env -u USER "scripts/$b" --dry-run 2>&1); then ok "$b --dry-run esce 0"
+  else ko "$b --dry-run fallisce (exit $?)" "$(echo "$out" | tail -3)"; fi
 done
 
 sec "3. Invarianti di sicurezza nel codice"
@@ -45,6 +63,20 @@ grep -q 'health/liveliness' scripts/cleanup-host.sh \
 # create-vm --destroy deve chiedere conferma esplicita
 grep -A3 'DESTROY.*=.*1' scripts/create-vm.sh | grep -q 'read -rp' \
   && ok "create-vm --destroy richiede conferma" || ko "--destroy senza conferma"
+# TC-02: nessun config client deve puntare al vecchio proxy headroom (:8787).
+# È la regressione piu' frequente del repo ('headroom wrap' riscrive i config).
+grep -rn ':8787' clients/ 2>/dev/null \
+  && ko "riferimento a :8787 nei config client" "invariante #1: un solo gateway" \
+  || ok "nessun client punta a :8787"
+# Il Dockerfile non deve usare 'pip': l'immagine upstream (Wolfi + venv uv) non
+# ce l'ha. È il bug che teneva rossa la CI da sempre.
+grep -qE '^RUN[[:space:]]+pip[[:space:]]' services/Dockerfile \
+  && ko "Dockerfile usa 'pip'" "l'immagine base non ha pip: usa uv sul venv /app/.venv" \
+  || ok "Dockerfile non usa 'pip' (immagine base senza pip)"
+# I nomi della lane locale devono essere gli stessi ovunque.
+if grep -q 'local-small' scripts/*.sh docs/*.md --exclude=test-scripts.sh 2>/dev/null; then
+  ko "lane locale: 'local-small' convive con 'local-fast'/'local-good'" "un nome solo"
+else ok "lane locale: nomi coerenti (local-fast / local-good)"; fi
 
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
@@ -61,7 +93,9 @@ for d in services services-biome; do
     python3 -c "import yaml,sys; yaml.safe_load(open('$d/docker-compose.yml'))" \
       && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
   elif command -v docker >/dev/null 2>&1; then
-    ( cd "$d" && cp -n .env.example .env 2>/dev/null; BIND_IP=127.0.0.1 docker compose config >/dev/null 2>&1 ) \
+    # --env-file: NON si scrive un .env dentro il repo. Questo script dichiara
+    # di non toccare nulla e deve essere vero anche nel ramo di fallback.
+    ( cd "$d" && BIND_IP=127.0.0.1 docker compose --env-file .env.example config >/dev/null 2>&1 ) \
       && ok "$d/docker-compose.yml valido (via docker compose)" \
       || echo -e "  \033[2m–\033[0m $d/docker-compose.yml non verificabile qui"
   else
@@ -97,8 +131,10 @@ done
 [ -f AGENTS.md ] && ok "AGENTS.md presente (contesto per gli agenti)" || ko "AGENTS.md mancante"
 [ -f CLAUDE.md ] && grep -q AGENTS.md CLAUDE.md && ok "CLAUDE.md rimanda ad AGENTS.md (una sola verita')" || ko "CLAUDE.md assente o non allineato"
 # ogni script deve essere citato almeno una volta nei doc
-for s in create-vm setup-ollama restore-test detect-hardware test-all deploy-all; do
-  grep -rq "$s" docs/ README.md && ok "$s documentato" || ko "$s non citato nella documentazione"
+for f in scripts/*.sh scripts/*.py; do
+  b=$(basename "$f"); n="${b%.*}"
+  grep -rq "$n" docs/ README.md AGENTS.md && ok "$n documentato" \
+    || ko "$n non citato nella documentazione"
 done
 
 echo -e "\n\033[36m━━ Esito ━━\033[0m\n  \033[32m✓ $P\033[0m   \033[31m✗ $F\033[0m"

@@ -29,6 +29,13 @@ Mantieni skill/MCP/graphify. Perdi solo la compressione su questa lane.
 
 **(B) Abbonamento + headroom** — `ANTHROPIC_BASE_URL=http://127.0.0.1:8787`,
 riattivando il proxy standalone con upstream Anthropic. Recuperi la compressione.
+> ⚠️ **Questa variante contraddice due invarianti del progetto**: #1 (un solo
+> gateway, nessun client parla direttamente a un provider) e #2 (la compressione
+> è un callback dentro LiteLLM, non un proxy davanti — ADR-0003, che supersede
+> 0002). È anche esattamente il proxy che `cleanup-host.sh` rimuove e che
+> `audit-integration.py` segnala. Se la usi, sei fuori dall'architettura
+> documentata: o si accetta con un ADR che lo dichiari, o si sceglie A o C.
+> Vedi la domanda aperta in `docs/DEVOPS-AUDIT.md`.
 
 **(C) Abbonamento via LiteLLM** — `BASE_URL=:4000`, `ANTHROPIC_MODEL=anthropic-claude`,
 `ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-..."`, con

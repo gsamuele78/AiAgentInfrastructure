@@ -51,7 +51,7 @@ if ph 3; then say "FASE 3 — Pulizia host"
 run "./cleanup-host.sh --dry-run"; ask "Applicare?" && run "./cleanup-host.sh" || warn saltata; fi
 
 if ph 4; then say "FASE 4 — Tooling (Serena, graphify, mattpocock, AgentShield)"
-run "./stack-selective-install.sh '${REPO:-$PWD}'"; ok "tooling installato"; fi
+run "./stack-selective-install.sh '${REPO:-$HERE/..}'"; ok "tooling installato"; fi
 
 if ph 5; then say "FASE 5 — Doppia autenticazione"
 cat <<'X'
@@ -62,7 +62,8 @@ cat <<'X'
     (C) via LiteLLM : BASE_URL=:4000 + ANTHROPIC_CUSTOM_HEADERS
   SEMPRE:  unset ANTHROPIC_API_KEY ANTHROPIC_AUTH_TOKEN
 X
-run "echo 'source $HERE/../clients/shell-env.sh' >> ~/.bashrc"
+# idempotente: rilanciare la fase non deve duplicare la riga in .bashrc
+run "grep -qF 'clients/shell-env.sh' ~/.bashrc 2>/dev/null || echo 'source $HERE/../clients/shell-env.sh' >> ~/.bashrc"
 ask "Fatto?" && ok "dual-auth pronta" || warn "da completare"; fi
 
 if ph 6; then say "FASE 6 — LLM locale (opzionale)"

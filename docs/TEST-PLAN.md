@@ -8,7 +8,7 @@
 | L2 Build | immagine + gate callback | CI `validate.yml` | ✅ |
 | L3 Config | client puntano dove devono | `audit-integration.py` | ✅ |
 | L4 Infra | best practice deploy | `devops-audit.sh` | ✅ |
-| L5 Funzionale | catena reale, compressione | `test-all.sh` | ✅ (runner self-hosted) |
+| L5 Funzionale | catena reale, compressione | `test-all.sh` | ⚠️ runner self-hosted, **non bloccante** (vedi sotto) |
 | L6 Manuale | auth, restore, snapshot | checklist | ❌ |
 
 ## Matrice requisiti → test
@@ -18,10 +18,10 @@
 | F2 | `test-all.sh gateway` — alias coding/smart/cheap | L5 |
 | F3 | `test-all.sh compress` — TC-01 | L5 |
 | F4 | header provider OpenRouter | L6 |
-| F5 | `test-all.sh local` | L5 |
-| F6 | `test-all.sh biome` | L5 |
+| F5 | `test-all.sh local` — verifica Ollama, **non** che il gateway abbia la lane: `local-fast`/`local-good` non sono in `litellm_config.yaml` | L5 |
+| F6 | `test-all.sh biome` — `skip` se `biome-coder` non è registrato, e nel config versionato non lo è | L5 |
 | F7 | `/spend/logs` | L5 |
-| F8 | `sync_openrouter.py --dry-run` | L5 |
+| F8 | — | ❌ **non implementato**: `sync_openrouter.py` non esiste (ADR-0004, debito #5 in DEVOPS-AUDIT) |
 | F9 | `/status` in Claude Code — TC-04 | L6 |
 | N1 | `devops-audit.sh` §2 + CI `secrets` | L1/L4 |
 | N3 | TC-05 restore + TC-06 snapshot | L6 |
@@ -42,6 +42,13 @@ nessun segreto sia hardcoded. Gira su runner GitHub: nessuna dipendenza dall'hos
 `--dry-run` e deve completarlo **anche su una macchina vuota**. Se un dry-run
 crasha, crasherebbe anche l'esecuzione reale.
 
+> Fino al 2026-08-21 questo caso era verificato con un `grep -- '--dry-run'` su
+> una lista di 4 script scritta a mano: cercare la stringa non dimostra che il
+> dry-run funzioni, e infatti `create-vm.sh --dry-run` usciva 1 (`USER: unbound
+> variable`, poi `die` sui prerequisiti). Ora `test-scripts.sh` §2 deriva la
+> lista da `scripts/*.sh` — l'unica eccezione sono gli script dichiarati
+> read-only — e §2b **esegue** ogni dry-run con `env -u USER`.
+
 ## Casi critici
 **TC-01 Compressione** — payload JSON 400 righe; atteso `prompt_tokens` ≪ payload
 grezzo. Fallimento probabile: callback non caricato (il gate build lo intercetta).
@@ -58,7 +65,8 @@ la fatturazione: per questo è un test dedicato.
 
 **TC-05 Restore del backup** — `restore-test.sh`: dump → DB scratch → verifica
 tabelle → cleanup. **Obbligatorio almeno una volta.** Un backup non testato non è
-un backup. Automatizzato nella CI `functional.yml`.
+un backup. Girava in CI `functional.yml`, ma vedi il limite qui sotto: il job non
+può fallire, quindi finora "automatizzato" non voleva dire "verificato".
 
 **TC-06 Rollback via snapshot** — snapshot → modifica distruttiva → revert →
 `test-all.sh`. Atteso < 5 min.
@@ -69,6 +77,26 @@ un backup. Automatizzato nella CI `functional.yml`.
 ./scripts/devops-audit.sh && ./scripts/audit-integration.py && ./scripts/test-all.sh
 ./scripts/restore-test.sh        # TC-05
 ```
+
+## Limite noto: i test funzionali non sono un gate
+`functional.yml` ha `continue-on-error: true` **sul job**. Motivazione dichiarata
+in ADR-0010 (il runner self-hosted gira solo a laptop acceso, e un job in coda
+che scade non deve tingere di rosso il repo). Conseguenza non dichiarata: **TC-01,
+TC-02, TC-04 e TC-05 possono fallire senza che nessuno se ne accorga** — vanno
+letti nei log, non nel badge. Fino a quando resta così, l'unico gate reale è L1/L1b/L2
+su runner GitHub. Rimuoverlo cambia una conseguenza scritta in un ADR accettato:
+serve un ADR nuovo, non una modifica al workflow.
+
+## Nota: gli alias `coding` / `smart` / `cheap`
+Non sono in `model_list`: esistono solo come chiavi di `litellm_settings.fallbacks`.
+Funzionano perché il primo tentativo su un model group inesistente solleva
+un'eccezione che `Router.async_function_with_fallbacks` intercetta per cercare i
+fallback. Conseguenze: **non compaiono in `/v1/models`** (per questo `test-all.sh`
+li segna `skip` e non `fail`), e il comportamento dipende da un dettaglio
+implementativo di LiteLLM. Il test che conta è la completion reale su `cheap` in
+`test-all.sh gateway`. Se si vuole un contratto esplicito, l'alternativa è
+`router_settings.model_group_alias` — cambia il routing, quindi va deciso, non
+subito.
 
 ## Criteri di uscita
 L1–L5 senza fallimenti · TC-05 eseguito con esito positivo · TC-04 verificato ·

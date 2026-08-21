@@ -24,6 +24,9 @@ Le decisioni sono tracciate in `adr/`. Sintesi:
 - **0008** Ollama sull'host (niente passthrough), bind su virbr0.
 - **0009** mTLS per M2M verso BIOME; Keycloak solo per gli umani.
 - **0010** CI di validazione + functional su runner self-hosted; nessun CD.
+- **0011** cloud-init invece dell'installazione manuale della VM.
+- **0012** Il multi-tenant BIOME vive in un repo separato.
+- **0013** `AGENTS.md` è la memoria di progetto (supersede 0007 sul file canonico).
 
 ## Autenticazione (doppia rotta)
 | Client | Auth | Vedi |

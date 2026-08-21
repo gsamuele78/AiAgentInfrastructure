@@ -8,6 +8,11 @@
 | Security | **AgentShield** (npx, da ECC) | — |
 | Modelli | **LiteLLM** + headroom callback | proxy headroom standalone |
 
+> `clients/codex-config.toml` registra anche un **MCP** `headroom`
+> (`headroom mcp serve`): è un tool a sé, non il proxy rimosso da
+> `cleanup-host.sh`, ma non è censito in questa tabella. Da confermare o
+> rimuovere (ADR-0006, un tool per layer).
+
 **Non adottati:** `superpowers` (overlap metodologia + subagent-heavy = costo
 token e meno controllo) e **ECC full** (261 skill + hook → context bloat, contro
 il vincolo single-maintainer). Da ECC si prende solo AgentShield.

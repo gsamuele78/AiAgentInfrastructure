@@ -4,6 +4,8 @@ services:
       context: .
       args:
         LITELLM_IMAGE_TAG: "${LITELLM_IMAGE_TAG:-main-stable}"
+        # vuoto = solo il core di headroom-ai (vedi Dockerfile: [all] = torch)
+        HEADROOM_EXTRAS: "${HEADROOM_EXTRAS:-}"
     image: litellm-headroom:local
     container_name: litellm
     restart: unless-stopped

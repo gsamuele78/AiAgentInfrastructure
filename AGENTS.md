@@ -99,13 +99,25 @@ attenzione continua.
 | `shm_size` mancante su vLLM | crash oscuro all'avvio | `shm_size: 16gb` |
 | `proxy_buffering` attivo in nginx | streaming che arriva in blocco | `proxy_buffering off` |
 | File sourced senza shebang | shellcheck SC2148 | `# shellcheck shell=bash` |
+| `pip install` nel Dockerfile | build KO: `pip: not found` | l'immagine upstream è Wolfi + venv `uv`: installa con `uv pip install --python /app/.venv/bin/python` |
+| `headroom-ai[all]` su linux | immagine da ~3 GB (torch) | il callback usa solo il core: `HEADROOM_EXTRAS` vuoto |
+| `ports:` + `network_mode: service:` | `docker compose config` passa, `up` no | pubblica la porta sul servizio che possiede il netns |
+| `$USER` non impostato | `set -u` uccide il dry-run | `${USER:-$(id -un)}` |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 
 1. Immagine LiteLLM su tag mobile `main-stable` → pinnare un digest sha256
 2. Nessun alerting (accettabile per uso personale)
-3. Credenziali storiche esposte in un file 664 → **ruotarle**
+3. Credenziali storiche esposte in un file 664 → **ruotarle** (non risulta fatto)
 4. Nessuno scan CVE delle immagini
+5. `sync_openrouter.py` **non esiste**: ADR-0004 è deciso ma non implementato,
+   quindi F8 non c'è e vale solo il wildcard `openrouter/*`
+6. Lane locale (F5) e BIOME (F6) **non sono in `services/litellm_config.yaml`**:
+   vivono solo nei doc e nell'output da incollare a mano di `setup-ollama.sh`
+7. `functional.yml` ha `continue-on-error: true` **sul job**: TC-01/02/04/05
+   girano ma non possono far fallire nulla — l'unico gate reale è la CI statica
+8. Il repo è **pubblico**, mentre `docs/GITHUB-SETUP.md` assume che sia privato
+   (runner self-hosted, IP interni, nomi macchina)
 
 Elenco completo e razionale in `docs/DEVOPS-AUDIT.md`.
 

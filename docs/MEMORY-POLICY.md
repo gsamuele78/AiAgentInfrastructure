@@ -1,8 +1,8 @@
-# MEMORY POLICY — una verità per livello (ADR-0007)
+# MEMORY POLICY — una verità per livello (ADR-0007, ADR-0013)
 
 | Livello | Canonico | Altri |
 |---|---|---|
-| Progetto (decisioni, glossario) | **`AGENTS.md`** + `docs/adr/` (git) | `CLAUDE.md` vi rimanda: un solo file |
+| Progetto (decisioni, glossario) | **`AGENTS.md`** + `docs/adr/` (git) — ADR-0013 | `CLAUDE.md` vi rimanda: un solo file |
 | Struttura del codice | graphify (`graph.json`) | — |
 | Cross-sessione personale | **1** memory MCP | mem0: installato ma INERTE (verificato) |
 | Simboli live | Serena semantic | memory Serena **disabilitata** |
