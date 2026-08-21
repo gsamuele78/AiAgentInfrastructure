@@ -106,6 +106,10 @@ attenzione continua.
 | `ports:` + `network_mode: service:` | `docker compose config` passa, `up` no | pubblica la porta sul servizio che possiede il netns |
 | `$USER` non impostato | `set -u` uccide il dry-run | `${USER:-$(id -un)}` |
 | `docker compose --env-file X config` al posto di un `.env` vero | `env file .../.env not found` | `--env-file` cambia solo l'interpolazione, non soddisfa la chiave `env_file:` del servizio: il file deve esistere |
+| `/model/new` usato per aggiornare un modello | riga duplicata o errore | non e' un upsert (`table.create`): per modificare serve `/model/update` |
+| pricing letto da `model_info` | il diff non vede mai un cambiamento | `/model/info` riempie `model_info` con la cost map: il prezzo si scrive e si rilegge da `litellm_params` |
+| `set -e` tolto per aggiungere un `run()` | lo script esce 0 pur avendo fallito | controlla a mano i comandi critici (vedi `backup-db.sh`) |
+| `api_base` verso un hostname senza servizio nel compose | la lane fallisce al primo uso, non al deploy | `test-scripts.sh` §4 lo verifica |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 
@@ -114,7 +118,8 @@ attenzione continua.
 3. Credenziali storiche esposte in un file 664 → **ruotarle** (non risulta fatto)
 4. Nessuno scan CVE delle immagini
 5. `sync_openrouter.py` esiste ma **non è mai stato eseguito contro OpenRouter
-   reale**: la logica è testata contro un gateway finto, non contro il servizio
+   reale**: la logica è testata contro un gateway finto che replica le semantiche
+   verificate nel sorgente di LiteLLM, non contro il servizio
 6. **Lo stack non è mai stato deployato**: nessun ✅ del repo significa "visto
    funzionare". Il primo deploy è anche il primo test reale della catena
 7. Da ADR-0015 `functional.yml` può fallire davvero, ma **a laptop spento il

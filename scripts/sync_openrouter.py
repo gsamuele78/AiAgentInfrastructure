@@ -24,6 +24,9 @@ Env:
   LITELLM_PROXY       default http://127.0.0.1:4000
   OPENROUTER_MODELS_URL  default https://openrouter.ai/api/v1/models
 
+Il pricing vive in litellm_params (non in model_info): e' li' che LiteLLM lo
+accetta, ed e' l'unico blob che /model/update sa aggiornare.
+
 Exit: 0 ok (anche se non c'e' nulla da fare) · 1 errore · 2 prerequisiti mancanti.
 Solo stdlib.
 """
@@ -116,14 +119,19 @@ def fetch_litellm() -> tuple[dict[str, dict], int]:
     manual = 0
     for m in d.get("data", []):
         info = m.get("model_info") or {}
+        params = m.get("litellm_params") or {}
         name = m.get("model_name", "")
         if info.get("managed_by") != TAG:
             manual += 1
             continue
+        # Il prezzo si legge da litellm_params, MAI da model_info: /model/info
+        # riempie model_info coi default della cost map di LiteLLM, quindi
+        # confrontarsi con quello significa fare il diff con un valore che non
+        # abbiamo scritto noi -- e riscrivere all'infinito.
         managed[name] = {
             "id": info.get("id"),
-            "in": info.get("input_cost_per_token"),
-            "out": info.get("output_cost_per_token"),
+            "in": params.get("input_cost_per_token"),
+            "out": params.get("output_cost_per_token"),
         }
     return managed, manual
 
@@ -207,28 +215,42 @@ def main() -> int:
     sec("4. Applicazione")
     errs = 0
 
-    def body(name: str, mid: str, d: dict, mid_id: str | None = None) -> dict:
-        params = {"model": f"openrouter/{mid}", "api_key": "os.environ/OPENROUTER_API_KEY"}
-        info = {"managed_by": TAG}
+    def params_of(mid: str, d: dict) -> dict:
+        # Il pricing sta in litellm_params: e' li' che LiteLLM lo accetta
+        # (LiteLLMParamsTypedDict, sezione CUSTOM PRICING) ed e' l'unico blob
+        # che /model/update sa aggiornare.
+        p = {"model": f"openrouter/{mid}", "api_key": "os.environ/OPENROUTER_API_KEY"}
         if d["in"] is not None:
-            info["input_cost_per_token"] = d["in"]
+            p["input_cost_per_token"] = d["in"]
         if d["out"] is not None:
-            info["output_cost_per_token"] = d["out"]
+            p["output_cost_per_token"] = d["out"]
+        return p
+
+    def create_body(name: str, mid: str, d: dict) -> dict:
+        info = {"managed_by": TAG}
         if d["ctx"]:
             info["max_input_tokens"] = d["ctx"]
-        if mid_id:
-            info["id"] = mid_id
-        return {"model_name": name, "litellm_params": params, "model_info": info}
+        return {"model_name": name, "litellm_params": params_of(mid, d), "model_info": info}
+
+    def update_body(mid: str, d: dict, mid_id: str) -> dict:
+        # /model/update aggiorna SOLO litellm_params (fa il merge con l'esistente)
+        # e non tocca model_info: il marchio managed_by scritto alla creazione
+        # sopravvive. Il payload vuole model_info.id per individuare la riga.
+        return {"model_info": {"id": mid_id}, "litellm_params": params_of(mid, d)}
 
     for n, mid, d in add:
         try:
-            http(f"{PROXY}/model/new", body(n, mid, d)); print(f"  + {n}")
+            http(f"{PROXY}/model/new", create_body(n, mid, d)); print(f"  + {n}")
         except Exception as e:  # noqa: BLE001 - un modello rotto non ferma il sync
             warn(f"add {n}: {e}"); errs += 1
     for n, mid, d, cur in upd:
-        # /model/new con lo stesso id fa upsert del pricing.
+        # /model/new NON e' un upsert: _add_model_to_db fa un .create() secco,
+        # quindi rimandarci un modello esistente duplica la riga o va in errore.
+        # L'endpoint di modifica e' /model/update.
+        if not cur["id"]:
+            warn(f"update {n}: id assente, salto"); errs += 1; continue
         try:
-            http(f"{PROXY}/model/new", body(n, mid, d, cur["id"])); print(f"  ~ {n}")
+            http(f"{PROXY}/model/update", update_body(mid, d, cur["id"])); print(f"  ~ {n}")
         except Exception as e:  # noqa: BLE001
             warn(f"update {n}: {e}"); errs += 1
     for n, mid_id in rm:

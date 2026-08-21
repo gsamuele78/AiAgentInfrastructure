@@ -36,25 +36,18 @@ step ca renew --daemon --exec "docker compose restart nginx" certs/server.crt ce
 ```bash
 step ca certificate "litellm-gateway.$(hostname -s)" certs/client.crt certs/client.key
 chmod 600 certs/client.key
-# aggiungi al compose della VM il servizio 'biome-tls' con stunnel.conf
 ```
-```yaml
-  biome-tls:
-    image: alpine:3.20
-    command: sh -c "apk add --no-cache stunnel && exec stunnel /etc/stunnel/stunnel.conf"
-    volumes:
-      - ../services-biome/stunnel.conf:/etc/stunnel/stunnel.conf:ro
-      - ./certs:/certs:ro
-    restart: unless-stopped
-```
-E in `litellm_config.yaml`:
-```yaml
-  - model_name: biome-coder
-    litellm_params:
-      model: openai/biome-coder
-      api_base: http://biome-tls:8443/v1
-      api_key: os.environ/VLLM_API_KEY
-      timeout: 600
+Il sidecar e la lane **sono gia' nel repo**, non piu' snippet da incollare:
+- servizio `biome-tls` in `services/docker-compose.yml`, dietro il profilo
+  `biome` (non parte, e non pretende certificati, per chi non usa BIOME);
+- config del sidecar in `services/stunnel-biome.conf` — sta in `services/`
+  perche' e' il lato CLIENT e gira nella VM del gateway, non qui;
+- modello `biome-coder` in `services/litellm_config.yaml`.
+
+Nella VM:
+```bash
+# certificati client in ~/llm-services/certs/
+docker compose --profile biome up -d
 ```
 
 ## Verifica — il test che conta

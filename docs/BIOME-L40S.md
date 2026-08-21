@@ -86,6 +86,10 @@ server {
 ## Lato client — sidecar stunnel
 Non dipendere dal supporto client-cert di LiteLLM (varia tra versioni): un
 sidecar termina l'mTLS in uscita, LiteLLM parla HTTP in locale.
+
+> Gia' nel repo: `services/stunnel-biome.conf` + servizio `biome-tls` in
+> `services/docker-compose.yml` (profilo `biome`). Si avvia con
+> `docker compose --profile biome up -d`. Sotto resta il razionale.
 ```ini
 # stunnel.conf
 [biome-llm]

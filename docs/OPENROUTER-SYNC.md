@@ -58,6 +58,21 @@ rilascia. A mano quando serve un modello nuovo, oppure da cron sulla VM:
   /path/to/sync_openrouter.py --yes >> ~/sync.log 2>&1
 ```
 
+## Endpoint usati, e perche'
+| Operazione | Endpoint | Nota |
+|---|---|---|
+| Aggiunta | `POST /model/new` | e' un **create** secco (`_add_model_to_db` → `table.create`): rimandarci un id esistente duplica o va in errore, non fa upsert |
+| Aggiornamento prezzo | `POST /model/update` | aggiorna **solo** `litellm_params`, in merge con l'esistente, e non tocca `model_info` — il marchio `managed_by` sopravvive |
+| Rimozione | `POST /model/delete` | per `model_info.id` |
+
+Il pricing sta in `litellm_params`, non in `model_info`, per due ragioni: è lì
+che LiteLLM lo accetta (`LiteLLMParamsTypedDict`, sezione *custom pricing*), ed
+è l'unico blob che `/model/update` sa aggiornare. **Il diff rilegge il prezzo da
+`litellm_params`**: `/model/info` riempie `model_info` con i default della cost
+map di LiteLLM, quindi confrontarsi con quello significherebbe fare il diff con
+un valore che non abbiamo scritto noi — e non aggiornare mai, o riscrivere ogni
+volta.
+
 ## Limiti noti
 - **Sincronizza tutto il catalogo** (centinaia di modelli). È ciò che ADR-0004
   voleva — il problema era il dropdown vuoto — ma un elenco lunghissimo ha un

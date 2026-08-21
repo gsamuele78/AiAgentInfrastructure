@@ -179,6 +179,30 @@ for wf in .github/workflows/*.yml; do
   fi
 done
 
+# Ogni hostname usato come api_base nel config del gateway deve corrispondere a
+# un servizio del compose (o essere un IP/host esterno). Un `biome-tls` senza
+# servizio non risolve: la lane fallisce al primo uso, non al deploy.
+if python3 -c 'import yaml' 2>/dev/null; then
+  python3 - <<'PYX' && ok "api_base: ogni hostname interno ha un servizio" || ko "api_base punta a un hostname senza servizio"
+import re, sys, yaml
+cfg = yaml.safe_load(open("services/litellm_config.yaml"))
+comp = yaml.safe_load(open("services/docker-compose.yml"))
+services = set(comp.get("services") or {})
+bad = []
+for m in cfg.get("model_list") or []:
+    base = (m.get("litellm_params") or {}).get("api_base") or ""
+    host = re.sub(r"^https?://", "", base).split("/")[0].split(":")[0]
+    if not host or re.match(r"^[\d.]+$", host) or "." in host:
+        continue            # IP o FQDN esterno: fuori dal compose
+    if host not in services:
+        bad.append(f"{m.get('model_name')} -> {host}")
+if bad:
+    print("   ", "; ".join(bad)); sys.exit(1)
+PYX
+else
+  echo -e "  \033[2m–\033[0m api_base non verificabile (pyyaml assente)"
+fi
+
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
   [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"

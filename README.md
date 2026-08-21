@@ -50,7 +50,7 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 │   ├── ARCHITECTURE.md · TOOLS-STACK.md · MEMORY-POLICY.md
 │   ├── DEVOPS-AUDIT.md       best practice + debito riconosciuto
 │   └── CURRENT-STATE.md      stato verificato dell'host
-├── services/                 gira nella VM (compose + Dockerfile + config)
+├── services/                 gira nella VM (compose + Dockerfile + config + sidecar BIOME)
 ├── services-biome/           gira sul server BIOME (vLLM + nginx mTLS + stunnel)
 ├── clients/                  opencode.jsonc, claude, codex, shell-env
 ├── systemd/                  forward VM + note di rimozione
