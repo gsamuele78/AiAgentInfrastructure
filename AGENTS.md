@@ -64,6 +64,7 @@ attenzione continua.
 ```bash
 # verifica (in ordine di costo crescente)
 ./scripts/test-scripts.sh        # L1b: contratti e invarianti — gira ovunque
+#   (pyyaml opzionale: senza, i controlli sui compose sono 'skip' non 'fail')
 ./scripts/devops-audit.sh        # L4: best practice deploy
 ./scripts/audit-integration.py   # L3: configurazione dei client
 ./scripts/test-all.sh            # L5: catena reale (serve il gateway attivo)

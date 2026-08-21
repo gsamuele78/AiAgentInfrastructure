@@ -33,6 +33,11 @@ porte, vLLM stia su loopback, le config siano `:ro`, `cleanup-host` faccia il
 pre-check sul gateway (ordine PSE), `create-vm --destroy` chieda conferma, e
 nessun segreto sia hardcoded. Gira su runner GitHub: nessuna dipendenza dall'host.
 
+> **Dipendenze opzionali:** `test-scripts.sh` usa `pyyaml` se presente, altrimenti
+> ripiega su `docker compose config` o su verifiche testuali. Un controllo non
+> eseguibile risulta **skip**, mai fail: un test che fallisce per motivi
+> ambientali erode la fiducia nella suite più di un test assente.
+
 **TC-08 Dry-run non distruttivi** — ogni script che modifica il sistema espone
 `--dry-run` e deve completarlo **anche su una macchina vuota**. Se un dry-run
 crasha, crasherebbe anche l'esecuzione reale.

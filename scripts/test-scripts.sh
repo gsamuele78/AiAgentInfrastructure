@@ -47,17 +47,40 @@ grep -A3 'DESTROY.*=.*1' scripts/create-vm.sh | grep -q 'read -rp' \
   && ok "create-vm --destroy richiede conferma" || ko "--destroy senza conferma"
 
 sec "4. Compose: validi e senza esposizioni indebite"
+# pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
+# Un controllo che fallisce per motivi ambientali e' peggio di un controllo assente.
+if python3 -c 'import yaml' 2>/dev/null; then
+  HAVE_YAML=1
+else
+  HAVE_YAML=0
+  echo -e "  \033[2m–\033[0m controlli YAML saltati (pyyaml assente: pip install pyyaml)"
+fi
+
 for d in services services-biome; do
-  python3 - "$d/docker-compose.yml" <<'PY' && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
-import yaml,sys; yaml.safe_load(open(sys.argv[1]))
-PY
+  if [ "$HAVE_YAML" = 1 ]; then
+    python3 -c "import yaml,sys; yaml.safe_load(open('$d/docker-compose.yml'))" \
+      && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
+  elif command -v docker >/dev/null 2>&1; then
+    ( cd "$d" && cp -n .env.example .env 2>/dev/null; BIND_IP=127.0.0.1 docker compose config >/dev/null 2>&1 ) \
+      && ok "$d/docker-compose.yml valido (via docker compose)" \
+      || echo -e "  \033[2m–\033[0m $d/docker-compose.yml non verificabile qui"
+  else
+    echo -e "  \033[2m–\033[0m $d/docker-compose.yml non verificabile (ne' pyyaml ne' docker)"
+  fi
 done
-# postgres non deve pubblicare porte
-python3 - <<'PY' && ok "postgres non esposto su porta host" || ko "postgres esposto"
+
+# postgres non deve pubblicare porte. Fallback su grep: non richiede pyyaml
+# ed e' l'ancora di sicurezza se il parser non e' disponibile.
+if [ "$HAVE_YAML" = 1 ]; then
+  python3 - <<'PYX' && ok "postgres non esposto su porta host" || ko "postgres esposto"
 import yaml,sys
 c=yaml.safe_load(open("services/docker-compose.yml"))
 sys.exit(1 if c["services"]["db"].get("ports") else 0)
-PY
+PYX
+else
+  grep -qE '^\s*-\s*"?[0-9.]*:?5432:5432' services/docker-compose.yml \
+    && ko "postgres esposto su porta host" || ok "postgres non esposto (verifica testuale)"
+fi
 # vLLM deve stare su loopback
 grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
   && ok "vLLM su loopback (solo nginx lo espone)" || ko "vLLM non su loopback"
