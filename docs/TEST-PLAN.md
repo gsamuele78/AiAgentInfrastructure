@@ -4,6 +4,7 @@
 | Livello | Verifica | Dove | Auto |
 |---|---|---|---|
 | L1 Statico | sintassi, lint, segreti | CI `validate.yml` | ✅ |
+| L1b Script | contratti, invarianti sicurezza, dry-run | `test-scripts.sh` (CI) | ✅ |
 | L2 Build | immagine + gate callback | CI `validate.yml` | ✅ |
 | L3 Config | client puntano dove devono | `audit-integration.py` | ✅ |
 | L4 Infra | best practice deploy | `devops-audit.sh` | ✅ |
@@ -25,6 +26,16 @@
 | N1 | `devops-audit.sh` §2 + CI `secrets` | L1/L4 |
 | N3 | TC-05 restore + TC-06 snapshot | L6 |
 | N4 | CI `syntax` + `build` | L1/L2 |
+
+**TC-07 Invarianti di sicurezza negli script** — `test-scripts.sh` verifica nel
+*codice* che: Ollama non venga mai bindato su `0.0.0.0`, postgres non pubblichi
+porte, vLLM stia su loopback, le config siano `:ro`, `cleanup-host` faccia il
+pre-check sul gateway (ordine PSE), `create-vm --destroy` chieda conferma, e
+nessun segreto sia hardcoded. Gira su runner GitHub: nessuna dipendenza dall'host.
+
+**TC-08 Dry-run non distruttivi** — ogni script che modifica il sistema espone
+`--dry-run` e deve completarlo **anche su una macchina vuota**. Se un dry-run
+crasha, crasherebbe anche l'esecuzione reale.
 
 ## Casi critici
 **TC-01 Compressione** — payload JSON 400 righe; atteso `prompt_tokens` ≪ payload

@@ -19,6 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test degli script
+        run: ./scripts/test-scripts.sh
+
       - name: Rilevamento hardware
         run: ./scripts/detect-hardware.sh
 

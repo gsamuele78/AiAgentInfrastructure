@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# ============================================================
+#  test-scripts.sh -- test degli SCRIPT stessi (L1/L2 del test plan).
+#  Non tocca il sistema: verifica sintassi, contratti, idempotenza
+#  dei dry-run e le invarianti di sicurezza del codice.
+#  Gira anche in CI su runner GitHub (nessuna dipendenza dall'host).
+# ============================================================
+set -uo pipefail
+cd "$(dirname "$0")/.." || exit 1
+P=0;F=0
+ok(){ echo -e "  \033[32m✓\033[0m $1"; P=$((P+1)); }
+ko(){ echo -e "  \033[31m✗\033[0m $1"; [ -n "${2:-}" ] && echo -e "     \033[2m$2\033[0m"; F=$((F+1)); }
+sec(){ echo -e "\n\033[36m━━ $1 ━━\033[0m"; }
+
+sec "1. Sintassi ed eseguibilità"
+for s in scripts/*.sh; do
+  bash -n "$s" && ok "sintassi $(basename "$s")" || ko "sintassi $(basename "$s")"
+  [ -x "$s" ] && ok "eseguibile $(basename "$s")" || ko "$(basename "$s") non eseguibile" "chmod +x $s"
+done
+python3 -m py_compile scripts/*.py && ok "python compila" || ko "python non compila"
+
+sec "2. Contratto: ogni script supporta --dry-run o è read-only"
+for s in create-vm.sh setup-ollama.sh cleanup-host.sh deploy-all.sh; do
+  grep -q -- '--dry-run' "scripts/$s" && ok "$s espone --dry-run" \
+    || ko "$s senza --dry-run" "gli script che modificano il sistema devono poterlo simulare"
+done
+for s in detect-hardware.sh devops-audit.sh test-all.sh; do
+  grep -qE 'sudo (rm|systemctl (stop|disable)|mv)' "scripts/$s" \
+    && ko "$s dichiarato read-only ma modifica il sistema" || ok "$s è read-only"
+done
+
+sec "3. Invarianti di sicurezza nel codice"
+# Ollama non deve mai essere bindato su tutte le interfacce
+grep -q 'OLLAMA_HOST=.*0\.0\.0\.0' scripts/setup-ollama.sh \
+  && ko "setup-ollama binda Ollama su 0.0.0.0" "Ollama non ha auth: solo virbr0" \
+  || ok "Ollama non viene bindato su 0.0.0.0"
+# nessun segreto hardcoded
+grep -rInE '(sk-ant-[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-z0-9]{20,})' scripts/ services/ services-biome/ clients/ 2>/dev/null \
+  | grep -viE 'CHANGEME|example|placeholder|<' \
+  && ko "segreto hardcoded" || ok "nessun segreto hardcoded"
+# cleanup-host deve avere il pre-check sul gateway (ordine PSE)
+grep -q 'health/liveliness' scripts/cleanup-host.sh \
+  && ok "cleanup-host verifica il gateway prima di pulire" \
+  || ko "cleanup-host senza pre-check" "ordine PSE: VM su PRIMA della pulizia"
+# create-vm --destroy deve chiedere conferma esplicita
+grep -A3 'DESTROY.*=.*1' scripts/create-vm.sh | grep -q 'read -rp' \
+  && ok "create-vm --destroy richiede conferma" || ko "--destroy senza conferma"
+
+sec "4. Compose: validi e senza esposizioni indebite"
+for d in services services-biome; do
+  python3 - "$d/docker-compose.yml" <<'PY' && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
+import yaml,sys; yaml.safe_load(open(sys.argv[1]))
+PY
+done
+# postgres non deve pubblicare porte
+python3 - <<'PY' && ok "postgres non esposto su porta host" || ko "postgres esposto"
+import yaml,sys
+c=yaml.safe_load(open("services/docker-compose.yml"))
+sys.exit(1 if c["services"]["db"].get("ports") else 0)
+PY
+# vLLM deve stare su loopback
+grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
+  && ok "vLLM su loopback (solo nginx lo espone)" || ko "vLLM non su loopback"
+# config montate read-only
+grep -q ':ro' services/docker-compose.yml && ok "config montata :ro" || ko "config non :ro"
+
+sec "5. Coerenza documentazione"
+for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
+  [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"
+done
+for f in docs/adr/[0-9]*.md; do
+  grep -q '^- \*\*Status\*\*' "$f" || ko "$(basename "$f") senza Status"
+done
+# ogni script deve essere citato almeno una volta nei doc
+for s in create-vm setup-ollama restore-test detect-hardware test-all deploy-all; do
+  grep -rq "$s" docs/ README.md && ok "$s documentato" || ko "$s non citato nella documentazione"
+done
+
+echo -e "\n\033[36m━━ Esito ━━\033[0m\n  \033[32m✓ $P\033[0m   \033[31m✗ $F\033[0m"
+[ "$F" -gt 0 ] && exit 1
+echo -e "  \033[32mTutti i test superati.\033[0m"

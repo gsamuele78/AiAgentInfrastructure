@@ -28,13 +28,14 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 ```
 ├── docs/
 │   ├── PRD.md                requisiti, scope, non-goals, accettazione
-│   ├── adr/                  10 Architecture Decision Records
+│   ├── adr/                  12 Architecture Decision Records
 │   ├── TEST-PLAN.md          matrice requisiti→test, casi critici
 │   ├── INSTALL_GUIDE.md      ★ deploy passo-passo
 │   ├── DUAL-AUTH.md          abbonamento Claude Pro + gateway insieme
 │   ├── CLAUDE-SUBSCRIPTION.md  auth, precedenza variabili, termini d'uso
 │   ├── AGENTS-SETUP.md       opencode, OpenChamber, MCP, VSCodium
-│   ├── VM-DEBIAN-INSTALL.md  netinstall minimale
+│   ├── VM-AUTOMATION.md      create-vm + setup-ollama (automazione)
+│   ├── VM-DEBIAN-INSTALL.md  netinstall minimale (fallback manuale)
 │   ├── VM-KVM-GUIDE.md       rete, riserva DHCP, snapshot
 │   ├── DOCKER-HARDENING.md   data-root, log driver, journald
 │   ├── GPU-LOCAL-LLM.md      Ollama su A2000 (4 GB) + offload

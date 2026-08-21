@@ -47,9 +47,32 @@ jobs:
           fail=0
           for s in $(find . -name '*.sh' -not -path './.git/*'); do
             bash -n "$s" || fail=1
-            shellcheck -e SC1091,SC2086,SC2181,SC2015 "$s" || fail=1
+            shellcheck -e SC1091,SC2086,SC2181,SC2015,SC2016 -S error "$s" || fail=1
           done
           exit $fail
+
+  scripts:
+    name: Test degli script (contratti, invarianti sicurezza)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python -m pip install --quiet pyyaml
+      - name: Suite test-scripts
+        # Verifica: sintassi, bit eseguibile, contratto --dry-run,
+        # invarianti di sicurezza (Ollama mai su 0.0.0.0, postgres non
+        # esposto, vLLM su loopback, conferma su --destroy), coerenza ADR.
+        run: ./scripts/test-scripts.sh
+      - name: Dry-run degli script che modificano il sistema
+        # Devono uscire puliti anche su una macchina che non ha nulla:
+        # se un dry-run crasha, crasherebbe anche l'esecuzione reale.
+        run: |
+          ./scripts/detect-hardware.sh > /dev/null
+          ./scripts/setup-ollama.sh --dry-run > /dev/null
+          ./scripts/cleanup-host.sh --dry-run > /dev/null
+          ./scripts/deploy-all.sh --dry-run > /dev/null
+          echo "tutti i dry-run completati senza errori"
 
   build:
     name: Build immagine (gate callback)
@@ -59,6 +82,9 @@ jobs:
       - name: compose config
         working-directory: services
         run: cp .env.example .env && docker compose config >/dev/null && echo OK
+      - name: compose BIOME valido
+        working-directory: services-biome
+        run: cp .env.example .env && BIND_IP=127.0.0.1 docker compose config >/dev/null && echo OK
       - name: docker build
         working-directory: services
         # Il Dockerfile contiene il gate `import HeadroomCallback`: se il

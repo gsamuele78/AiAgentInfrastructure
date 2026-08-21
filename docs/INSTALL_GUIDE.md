@@ -11,9 +11,13 @@ Sotto, la versione manuale.
 ./scripts/detect-hardware.sh --emit-config   # sizing VM + modello locale
 ```
 
-## Fase 1 — VM: servizi
-Crea la VM con `VM-DEBIAN-INSTALL.md` (netinstall minimale) e `VM-KVM-GUIDE.md`
-(rete, riserva DHCP, snapshot). Poi:
+## Fase 1 — VM: creazione + servizi
+**Automatico** (consigliato — vedi `VM-AUTOMATION.md`):
+```bash
+./scripts/create-vm.sh                # cloud-init: VM pronta con docker e IP riservato
+virsh -c qemu:///system snapshot-create-as llm-vm clean-install
+```
+*Manuale* (fallback): `VM-DEBIAN-INSTALL.md` + `VM-KVM-GUIDE.md`. Poi in entrambi i casi:
 ```bash
 scp -r services/ jfs@<VM_IP>:~/llm-services/
 ssh jfs@<VM_IP>; cd ~/llm-services
@@ -53,13 +57,18 @@ Vedi `DUAL-AUTH.md`. In sintesi: opencode/codex sul gateway (già fatto),
 Claude Code sull'abbonamento (scegli variante A/B/C).
 
 ## Fase 6 — LLM locale (opzionale)
-Vedi `GPU-LOCAL-LLM.md`: Ollama sull'host, bind su `192.168.122.1`, **mai** `0.0.0.0`.
+```bash
+./scripts/setup-ollama.sh --dry-run && ./scripts/setup-ollama.sh
+```
+Razionale e scelta dei modelli: `GPU-LOCAL-LLM.md`. Bind su `192.168.122.1`,
+**mai** `0.0.0.0` (Ollama non ha autenticazione).
 
 ## Fase 7 — Verifica
 ```bash
-./scripts/devops-audit.sh
-./scripts/audit-integration.py
-./scripts/test-all.sh
+./scripts/test-scripts.sh        # L1/L2: contratti e invarianti degli script
+./scripts/devops-audit.sh        # L4: best practice deploy
+./scripts/audit-integration.py   # L3: configurazione
+./scripts/test-all.sh            # L5: catena reale
 ```
 
 ## Fase 8 — Baseline

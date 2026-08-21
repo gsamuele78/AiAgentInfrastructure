@@ -15,5 +15,7 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
 | [0008](0008-ollama-su-host.md) | Ollama su host, no passthrough | Accepted |
 | [0009](0009-mtls-per-biome.md) | mTLS M2M, Keycloak per umani | Accepted |
 | [0010](0010-ci-non-cd.md) | CI di validazione, nessun CD | Accepted |
+| [0011](0011-cloud-init-per-la-vm.md) | cloud-init invece di installazione manuale | Accepted |
+| [0012](0012-repo-separato-per-multi-tenant.md) | Repo separato per il multi-tenant BIOME | Accepted |
 
 Template: `_template.md`. Regole in `CONTRIBUTING.md`.

@@ -1,3 +1,5 @@
+# shellcheck shell=bash
+# Questo file va SORGATO (source), non eseguito: nessuno shebang.
 # Sorgi da ~/.bashrc. NON esporta ANTHROPIC_*: scavalcherebbe l'abbonamento.
 export PATH="$HOME/.opencode/bin:$PATH"
 [ -r "$HOME/.config/litellm/master.key" ] && \
