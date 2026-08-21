@@ -18,6 +18,12 @@ need(){ command -v "$1" >/dev/null && return 0
 need uv  "installa uv" || true
 need npx "serve npx"   || true
 
+# shellcheck source=lib/hw-detect.sh
+. "$HERE/lib/hw-detect.sh"
+# Sovrascrive ~/.claude, ~/.codex e ~/.config/opencode dell'HOST: da dentro un
+# sandbox scriverebbe nel sandbox, lasciando i config veri intatti.
+sandbox_guard "scripts/stack-selective-install.sh" "$DRY" || exit 1
+
 PROJ="${ARGS[0]:-$PWD}"
 
 say "1) Serena locale (semantic-only, memory OFF)"

@@ -14,6 +14,8 @@ warn(){ echo -e "  \033[33m!\033[0m $*"; }
 ask(){ [ "$DRY" = 1 ] && return 0; read -rp "  → $1 [Invio=continua, s=salta] " a; [ "$a" != s ]; }
 ph(){ [ -z "$ONLY" ] || [ "$ONLY" = "$1" ]; }
 
+sandbox_guard "scripts/deploy-all.sh" "$DRY" || exit 1
+
 echo "╔════════════════════════════════════════════════════════╗"
 echo "║ DEPLOY — gateway + agenti + tooling + locale           ║"
 echo "║ Claude Code su ABBONAMENTO · opencode su GATEWAY       ║"

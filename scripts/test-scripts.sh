@@ -188,6 +188,16 @@ for f in scripts/detect-hardware.sh scripts/setup-ollama.sh; do
     && ok "$b rileva la GPU dal bus PCI, non da nvidia-smi" \
     || ko "$b deduce la GPU dalla presenza di nvidia-smi" "falso negativo su OS atomico o dGPU spenta"
 done
+# Ogni script che modifica l'HOST deve rifiutarsi di partire da dentro un
+# sandbox: scriverebbe nel sandbox lasciando il sistema com'era, e il silenzio
+# e' il modo peggiore di sbagliare. Su Bazzite capita spesso: molte app,
+# terminali compresi, sono Flatpak.
+for b in $DRYRUN_SCRIPTS; do
+  case "$b" in backup-db.sh|restore-test.sh) continue ;; esac  # girano NELLA VM
+  grep -q 'sandbox_guard' "scripts/$b" && ok "$b si ferma se e' dentro un sandbox" \
+    || ko "$b non controlla il sandbox" "da un Flatpak scriverebbe nel sandbox, non sull'host"
+done
+
 # I comandi d'installazione non possono essere hardcoded su una distribuzione:
 # `apt install` su Fedora/Bazzite e' un consiglio che non funziona.
 # Eccezione legittima: il blocco cloud-init di create-vm.sh e' DATO, non

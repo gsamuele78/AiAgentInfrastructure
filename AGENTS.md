@@ -115,6 +115,8 @@ attenzione continua.
 | `ufw` dato per scontato | su Fedora il firewall e' `firewalld`: il comando non fallisce, semplicemente non apre niente | `setup-ollama.sh` gestisce entrambi |
 | `df /` per lo spazio disco | su ostree e' l'overlay composefs (~meta' della RAM), non il disco | misura `/var` (`vm_disk_path`) |
 | `readlink -f` su un symlink assente | stampa il percorso risolto invece di niente | `[ -L ]` prima, poi `readlink` semplice |
+| script lanciato da un terminale **Flatpak** | `nvidia-smi`/`virsh`/`docker` "assenti" e `/` a tmpfs, ma l'host li ha | `sandbox_kind()`; gli script che toccano l'host si fermano, `flatpak-spawn --host` per rieseguire |
+| `virt-manager` Flatpak scambiato per libvirt | e' solo la GUI: `virt-install`/`virsh`/`cloud-localds` restano assenti | serve il layer sull'host (`rpm-ostree install`) |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 

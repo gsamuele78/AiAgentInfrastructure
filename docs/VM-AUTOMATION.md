@@ -31,6 +31,11 @@ rpm-ostree install libvirt virt-install virt-manager cloud-utils qemu-img && sys
 
 ssh-keygen -t ed25519      # se non hai già una chiave
 ```
+> **Non lanciare `create-vm.sh` da un terminale Flatpak o da una distrobox**:
+> da lì non si raggiunge il `libvirtd` di sistema, e lo script si ferma
+> apposta. Un `virt-manager` installato come Flatpak è solo la GUI e non
+> fornisce `virt-install`/`virsh`/`cloud-localds`.
+
 > La VM resta **Debian** in ogni caso: `create-vm.sh` scarica una cloud image
 > Debian, quindi l'`apt` dentro il blocco cloud-init è corretto per costruzione,
 > qualunque sia l'OS dell'host.

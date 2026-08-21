@@ -22,6 +22,10 @@ ok(){ echo -e "  \033[32m✓\033[0m $*"; }
 warn(){ echo -e "  \033[33m!\033[0m $*"; }
 die(){ echo -e "  \033[31m✗\033[0m $*" >&2; exit 1; }
 
+# Da dentro un sandbox questo script scriverebbe nel sandbox: l'override
+# systemd, il bind di Ollama e il firewall riguardano l'HOST.
+sandbox_guard "scripts/setup-ollama.sh" "$DRY" || exit 1
+
 # ---------------------------------------------------------------- 1. rete
 say "1. Bridge libvirt (dove la VM raggiunge l'host)"
 BRIP=$(ip -4 -o addr show virbr0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)

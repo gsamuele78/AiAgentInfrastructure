@@ -22,6 +22,12 @@ CHASSIS=$(hostnamectl chassis 2>/dev/null || echo unknown)
 kv "CPU" "${MODEL:-n/d} (${CORES} core)"; kv "RAM" "${RAM_GB} GB (liberi ${RAM_AV} GB)"
 kv "Swap" "${SWAP} GB"; kv "Macchina" "$CHASSIS"
 kv "Sistema" "$(os_pretty)$(os_is_atomic && echo '  [atomico: /usr in sola lettura]')"
+SANDBOX=$(sandbox_kind)
+if [ -n "$SANDBOX" ]; then
+  warn "SANDBOX \033[1m$SANDBOX\033[0m: qui non vedi i comandi dell'host."
+  warn "Ogni 'assente' qui sotto significa 'non esposto nel sandbox', NON 'non installato'."
+  rec "per un quadro vero: $(host_run_hint './scripts/detect-hardware.sh')"
+fi
 
 sec "Sizing VM servizi"
 if [ "$RAM_GB" -ge 24 ]; then
@@ -68,8 +74,14 @@ elif [ -n "$GPU_ADDRS" ]; then
   done
   warn "hardware presente ma nvidia-smi non risponde: VRAM non misurabile"
   rec "$(nvidia_missing_hint "$(nvidia_pci_driver "${GPU_ADDRS%%$'\n'*}")")"
-  nvidia_kernel_module_loaded && rec "il modulo kernel nvidia E' caricato: manca solo il pacchetto degli strumenti"
-  warn "finche' resta cosi', l'inferenza locale non e' disponibile: usa le lane cloud/BIOME"
+  nvidia_kernel_module_loaded && rec "il modulo kernel nvidia E' caricato"
+  if [ -n "$SANDBOX" ]; then
+    # Da qui non si puo' dire se l'host possa fare inferenza: si puo' solo
+    # dire che da QUI non si vede. Affermare il resto sarebbe inventare.
+    warn "da dentro il sandbox non posso dire se l'host regga l'inferenza locale: rilancia sull'host"
+  else
+    warn "finche' resta cosi', l'inferenza locale non e' disponibile: usa le lane cloud/BIOME"
+  fi
 else
   kv "GPU NVIDIA" "non rilevata"
   kv "" "nessun dispositivo 0x10de di classe 0x03 sul bus PCI"
@@ -78,15 +90,17 @@ fi
 
 sec "Virtualizzazione e rete"
 grep -qE 'vmx|svm' /proc/cpuinfo 2>/dev/null && kv KVM supportato || warn "virtualizzazione HW non attiva (BIOS?)"
-command -v virsh >/dev/null 2>&1 && kv libvirt presente \
-  || { warn "libvirt assente"; rec "$(pkg_hint libvirt)"; }
+if command -v virsh >/dev/null 2>&1; then kv libvirt presente
+elif [ -n "$SANDBOX" ]; then warn "virsh non visibile nel sandbox (sull'host puo' esserci)"
+else warn "libvirt assente"; rec "$(pkg_hint libvirt)"; fi
 BRIP=""
 if ip -4 addr show virbr0 >/dev/null 2>&1; then
   BRIP=$(ip -4 -o addr show virbr0 | awk '{print $4}' | cut -d/ -f1)
   kv virbr0 "$BRIP"; rec "Ollama va bindato su $BRIP (NON 0.0.0.0)"
 else warn "virbr0 assente: rete libvirt 'default' non attiva"; fi
-command -v docker >/dev/null 2>&1 && kv docker "$(docker --version 2>/dev/null)" \
-  || { warn "docker assente sull'host"; rec "$(pkg_hint docker)"; }
+if command -v docker >/dev/null 2>&1; then kv docker "$(docker --version 2>/dev/null)"
+elif [ -n "$SANDBOX" ]; then warn "docker non visibile nel sandbox (serve comunque solo NELLA VM)"
+else warn "docker assente sull'host"; rec "$(pkg_hint docker)"; fi
 
 sec "Disco"
 # Si guarda dove finira' il qcow2, non "/": su un OS atomico "/" e' l'overlay
@@ -94,7 +108,9 @@ sec "Disco"
 DISKP=$(vm_disk_path)
 kv "Percorso valutato" "$DISKP"
 df -h "$DISKP" 2>/dev/null | awk 'NR<=2{printf "  %s\n",$0}'
-if os_is_atomic && [ "$DISKP" = "/" ]; then
+if [ -n "$SANDBOX" ]; then
+  warn "sandbox: questo filesystem e' quello del sandbox, non il disco dell'host"
+elif os_is_atomic && [ "$DISKP" = "/" ]; then
   warn "OS atomico: '/' e' un overlay composefs, la dimensione NON e' quella del disco"
 fi
 

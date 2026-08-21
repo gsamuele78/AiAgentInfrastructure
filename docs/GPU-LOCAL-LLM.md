@@ -107,5 +107,34 @@ Altre due cose cambiano su un OS atomico, e gli script ne tengono conto:
 | Firewall | `firewalld`, non `ufw` — `setup-ollama.sh` usa una *rich rule* per aprire la 11434 solo alla subnet libvirt |
 | Spazio disco | `df /` riporta l'overlay **composefs** (circa metà della RAM): per il qcow2 conta `/var`, ed è quello che lo script misura |
 
+### Attenzione al sandbox: su Bazzite molte app sono Flatpak
+
+Se lanci gli script da un terminale **Flatpak** (o da una toolbox/distrobox),
+non vedi i comandi dell'host: `nvidia-smi`, `virsh` e `docker` risultano
+assenti anche quando sull'host ci sono. `/sys` invece è visibile, quindi il
+rilevamento PCI della GPU funziona lo stesso — ed è così che si riconosce il
+caso: **hardware trovato, `driver: nvidia`, ma `nvidia-smi` non risponde**.
+
+`detect-hardware.sh` lo dice esplicitamente e rilegge ogni «assente» come «non
+esposto nel sandbox». Per un quadro vero:
+
+```bash
+flatpak-spawn --host ./scripts/detect-hardware.sh   # da un Flatpak
+distrobox-host-exec ./scripts/detect-hardware.sh    # da una distrobox
+```
+
+Gli script che **modificano l'host** — `setup-ollama.sh`, `create-vm.sh`,
+`cleanup-host.sh`, `deploy-all.sh`, `stack-selective-install.sh` — si
+**rifiutano di partire** da dentro un sandbox: scriverebbero nel sandbox
+lasciando il sistema com'era, e il silenzio è il modo peggiore di sbagliare.
+Con `--dry-run` avvisano e proseguono, perché lì non scrivono niente.
+
+> `virt-manager` installato come **Flatpak** (via Bazaar o Discover) è la sola
+> GUI: può pilotare un `libvirtd` che gira sull'host, ma non fornisce
+> `virt-install`, `virsh`, `qemu-img` e `cloud-localds`, che sono i comandi che
+> `create-vm.sh` invoca. Per quelli serve il layer sull'host:
+> `rpm-ostree install libvirt virt-install virt-manager cloud-utils qemu-img`
+> più un reboot.
+
 Ollama stesso si installa senza problemi: `/usr/local` è un symlink a
 `/var/usrlocal`, scrivibile, e l'unit systemd finisce in `/etc/systemd/system`.

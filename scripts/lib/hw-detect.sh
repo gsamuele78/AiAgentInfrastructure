@@ -73,6 +73,46 @@ pkg_install_cmd(){
   esac
 }
 
+# --- Sandbox / container ----------------------------------------------
+# Dentro un sandbox l'assenza di un comando NON dice niente sull'host: i
+# binari semplicemente non sono esposti. Su Bazzite capita facilmente, perche'
+# molte app (terminali compresi) sono Flatpak.
+# Stampa il tipo di sandbox, oppure niente se siamo sull'host.
+sandbox_kind(){
+  [ -f /.flatpak-info ] && { echo flatpak; return; }
+  [ -n "${FLATPAK_ID:-}" ] && { echo flatpak; return; }
+  [ -f /.dockerenv ] && { echo docker; return; }
+  if [ -f /run/.containerenv ]; then
+    grep -q 'name="toolbox"\|toolbox' /run/.containerenv 2>/dev/null && { echo toolbox; return; }
+    echo container; return
+  fi
+  [ -n "${container:-}" ] && { echo "${container}"; return; }
+  return 0
+}
+
+in_sandbox(){ [ -n "$(sandbox_kind)" ]; }
+
+# Come rieseguire un comando sull'host da dentro il sandbox.
+host_run_hint(){
+  case "$(sandbox_kind)" in
+    flatpak) echo "flatpak-spawn --host $*" ;;
+    toolbox|container) echo "distrobox-host-exec $* (oppure esci dal container)" ;;
+    docker) echo "esegui sull'host, non nel container" ;;
+    *) echo "$*" ;;
+  esac
+}
+
+# Gli script che MODIFICANO l'host non possono farlo da dentro un sandbox:
+# scriverebbero nel sandbox. $1 = nome dello script, $2 = 1 se dry-run.
+sandbox_guard(){
+  local kind; kind=$(sandbox_kind); [ -n "$kind" ] || return 0
+  echo -e "  \033[33m!\033[0m sandbox \033[1m$kind\033[0m rilevato: questo script modifica l'HOST" >&2
+  echo -e "     \033[2m$(host_run_hint "./$1")\033[0m" >&2
+  [ "${2:-0}" = 1 ] && return 0
+  echo -e "  \033[31m✗\033[0m mi fermo: da qui scriverei dentro il sandbox, non sull'host" >&2
+  return 1
+}
+
 # --- GPU NVIDIA -------------------------------------------------------
 # Indirizzi PCI delle GPU NVIDIA presenti FISICAMENTE, senza dipendere da
 # driver o tool: vendor 0x10de e classe 0x03xx (display controller).
@@ -120,6 +160,17 @@ nvidia_kernel_module_loaded(){ [ -e /proc/driver/nvidia/version ]; }
 # Perche' nvidia-smi non c'e', in una riga, con il rimedio giusto per QUESTO OS.
 nvidia_missing_hint(){
   local drv="${1:-}"
+  # Caso piu' insidioso: il driver C'E' e funziona, ma nvidia-smi non e'
+  # esposto nel sandbox. Consigliare di installare i driver sarebbe sbagliato.
+  if in_sandbox; then
+    if nvidia_kernel_module_loaded || [ "$drv" = nvidia ]; then
+      echo "il driver nvidia e' CARICATO sull'host: manca solo la visibilita' di nvidia-smi dentro il sandbox." \
+           "$(host_run_hint 'nvidia-smi') -- oppure rilancia lo script da un terminale dell'host."
+      return
+    fi
+    echo "sei in un sandbox $(sandbox_kind): l'assenza di nvidia-smi qui non dice nulla sull'host. Rilancia sull'host."
+    return
+  fi
   # Lo stato del driver viene PRIMA della famiglia dell'OS: se la GPU e' in
   # passthrough o su nouveau, il consiglio di cambiare immagine e' fuori bersaglio.
   case "$drv" in

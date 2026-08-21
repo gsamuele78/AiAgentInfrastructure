@@ -51,6 +51,9 @@ if [ "$DESTROY" = 1 ]; then
   ok "VM rimossa"; exit 0
 fi
 
+# La VM si crea sull'HOST: da un sandbox non si raggiunge libvirtd di sistema.
+sandbox_guard "scripts/create-vm.sh" "$DRY" || exit 1
+
 # ---------------------------------------------------------------- checks
 # TC-08: in --dry-run un prerequisito mancante e' un AVVISO, non un errore.
 # Il dry-run deve completare anche su una macchina che non ha nulla installato:
