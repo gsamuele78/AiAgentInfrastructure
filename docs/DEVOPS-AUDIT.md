@@ -31,7 +31,7 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 | ADR / decisioni | ✅ | `docs/adr/` 13 ADR, con superseded (0002→0003, 0007→0013) |
 | PRD / requisiti | ✅ | `docs/PRD.md` |
 | Test plan | ✅ | `docs/TEST-PLAN.md` |
-| CI | ⚠️ | `validate.yml` + `functional.yml`. `functional` ha `continue-on-error: true` sul job: **i test L5 non possono far fallire nulla** (ADR-0010 lo motiva col laptop spento, ma è un limite reale, non un dettaglio). |
+| CI | ✅ | `validate.yml` (verde dal 2026-08-21, prima mai) + `functional.yml`, che da ADR-0015 **può fallire davvero**. Prezzo: a laptop spento il run settimanale è rosso. |
 | CD | ❌ | **per scelta** (ADR-0010) |
 | Scan CVE immagini | ⚠️ | non implementato |
 
@@ -46,20 +46,18 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 5. **Nessun deploy** → il primo `create-vm.sh` + `docker compose up -d` è anche
    il primo test reale di tutta la catena. Aspettati che qualcosa non torni: i
    test statici coprono i contratti, non l'esercizio.
-6. **`sync_openrouter.py` non esiste** → ADR-0004 decide la riconciliazione dei
-   modelli via `/model/new` + `/model/delete`, ma lo script non è mai stato
-   scritto. F8 del PRD non è implementato e il suo test (TEST-PLAN) non è
-   eseguibile. Oggi vale solo il wildcard `openrouter/*`, con i limiti che
-   l'ADR stesso elenca (dropdown vuoto, niente pricing).
+6. ~~`sync_openrouter.py` non esiste~~ → **chiuso**: lo script c'è
+   (`docs/OPENROUTER-SYNC.md`), F8 è implementato e ha di nuovo un test.
+   Non è mai stato eseguito contro OpenRouter reale — vedi il debito #5.
 7. ~~Lane locale (F5) e BIOME (F6) fuori dal config versionato~~ → **chiuso**:
    `local-fast`, `local-good` e `biome-coder` sono in
    `services/litellm_config.yaml`. Restano le uniche lane che dipendono da
    servizi fuori dalla VM (Ollama sull'host, BIOME dietro VPN): se non ci sono,
    rispondono errore.
-8. **Test funzionali non bloccanti** → `functional.yml` ha
-   `continue-on-error: true` sul job: TC-01, TC-02, TC-04 e TC-05 girano ma non
-   possono fallire. Cambiarlo tocca una conseguenza dichiarata in ADR-0010 →
-   serve un nuovo ADR, non una modifica al volo.
+8. ~~Test funzionali non bloccanti~~ → **chiuso da ADR-0015**:
+   `continue-on-error` rimosso dal job. Debito residuo, dichiarato nell'ADR: a
+   laptop spento il run settimanale risulta rosso. Se diventa un rosso costante
+   e ignorato, la decisione va rivista.
 
 ## Non implementato *per scelta* (non è debito)
 Secret manager (Vault/SOPS) · CD automatico · HA/replica · container non-root

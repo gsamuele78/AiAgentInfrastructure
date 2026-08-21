@@ -27,6 +27,8 @@ Le decisioni sono tracciate in `adr/`. Sintesi:
 - **0011** cloud-init invece dell'installazione manuale della VM.
 - **0012** Il multi-tenant BIOME vive in un repo separato.
 - **0013** `AGENTS.md` è la memoria di progetto (supersede 0007 sul file canonico).
+- **0014** Headroom standalone ammesso sulla sola lane abbonamento (eccezione a 0001/0003).
+- **0015** I test funzionali possono fallire (supersede una conseguenza di 0010).
 
 ## Autenticazione (doppia rotta)
 | Client | Auth | Vedi |

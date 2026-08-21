@@ -8,7 +8,7 @@
 | L2 Build | immagine + gate callback | CI `validate.yml` | ✅ |
 | L3 Config | client puntano dove devono | `audit-integration.py` | ✅ |
 | L4 Infra | best practice deploy | `devops-audit.sh` | ✅ |
-| L5 Funzionale | catena reale, compressione | `test-all.sh` | ⚠️ runner self-hosted, **non bloccante** (vedi sotto) |
+| L5 Funzionale | catena reale, compressione | `test-all.sh` | ✅ runner self-hosted, **bloccante** (ADR-0015) |
 | L6 Manuale | auth, restore, snapshot | checklist | ❌ |
 
 ## Matrice requisiti → test
@@ -21,7 +21,7 @@
 | F5 | `test-all.sh local` — verifica che Ollama risponda; `local-fast`/`local-good` sono nel config versionato ma il test **non** verifica che il gateway li instradi | L5 |
 | F6 | `test-all.sh biome` — `biome-coder` è nel config versionato; il test resta `skip` se il gateway non è raggiungibile o la VPN è giù | L5 |
 | F7 | `/spend/logs` | L5 |
-| F8 | — | ❌ **non implementato**: `sync_openrouter.py` non esiste (ADR-0004, debito #5 in DEVOPS-AUDIT) |
+| F8 | `sync_openrouter.py --dry-run` — vedi `OPENROUTER-SYNC.md` | L5 |
 | F9 | `/status` in Claude Code — TC-04 | L6 |
 | N1 | `devops-audit.sh` §2 + CI `secrets` | L1/L4 |
 | N3 | TC-05 restore + TC-06 snapshot | L6 |
@@ -78,14 +78,24 @@ può fallire, quindi finora "automatizzato" non voleva dire "verificato".
 ./scripts/restore-test.sh        # TC-05
 ```
 
-## Limite noto: i test funzionali non sono un gate
-`functional.yml` ha `continue-on-error: true` **sul job**. Motivazione dichiarata
-in ADR-0010 (il runner self-hosted gira solo a laptop acceso, e un job in coda
-che scade non deve tingere di rosso il repo). Conseguenza non dichiarata: **TC-01,
-TC-02, TC-04 e TC-05 possono fallire senza che nessuno se ne accorga** — vanno
-letti nei log, non nel badge. Fino a quando resta così, l'unico gate reale è L1/L1b/L2
-su runner GitHub. Rimuoverlo cambia una conseguenza scritta in un ADR accettato:
-serve un ADR nuovo, non una modifica al workflow.
+## I test funzionali possono fallire (ADR-0015)
+`functional.yml` **non ha più** `continue-on-error: true` sul job. Fino al
+2026-08-21 ce l'aveva, e TC-01, TC-02, TC-04 e TC-05 giravano senza poter
+fallire: un test che non può fallire non è un test. È così che la modalità
+locale rotta di `restore-test.sh` è passata inosservata.
+
+Il prezzo, dichiarato in ADR-0015: **a laptop spento il run settimanale risulta
+rosso**. Un rosso «no runner» non è un rosso «test fallito» — si distinguono
+aprendo il run. `functional` non è fra gli status check richiesti su `main`
+(`GITHUB-SETUP.md` §2: `syntax`, `secrets`, `docs`), quindi non blocca i merge:
+è un segnale da guardare, non un cancello. Se il rosso diventa costante perché
+il laptop è sempre spento, la decisione va rivista, non subita.
+
+**TC-08 e `sync_openrouter.py`:** il dry-run di questo script calcola un diff,
+quindi ha bisogno del catalogo OpenRouter *e* del gateway. Su una macchina vuota
+esce `2` («prerequisiti mancanti»), che è il comportamento corretto — un rifiuto
+motivato, non un crash — ed è per questo che `test-scripts.sh` §2b lo salta
+esplicitamente invece di eseguirlo. Il suo test vero è F8, livello L5.
 
 ## Nota: gli alias `coding` / `smart` / `cheap`
 Non sono in `model_list`: esistono solo come chiavi di `litellm_settings.fallbacks`.

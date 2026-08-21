@@ -6,15 +6,28 @@ on:
   workflow_dispatch:
   schedule:
     - cron: "0 6 * * 1"       # lunedì 06:00: rileva le derive del weekend
+  # MAI `pull_request` qui: e' un workflow self-hosted su un repo PUBBLICO.
+  # Un trigger da PR darebbe esecuzione di codice arbitrario sull'host a
+  # chiunque apra una PR (docs/GITHUB-SETUP.md §4). test-scripts.sh lo verifica.
 permissions: { contents: read }
+
+# Se il laptop resta spento, un run schedulato annulla quello vecchio ancora in
+# coda invece di accumularne uno a settimana (ADR-0015).
+concurrency:
+  group: functional-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   functional:
     name: Catena reale (self-hosted)
     # Etichette da assegnare al runner in fase di registrazione.
     runs-on: [self-hosted, linux, llm-gateway]
-    # Non fallire l'intero repo se il runner è offline (laptop spento).
-    continue-on-error: true
+    # ADR-0015: NIENTE `continue-on-error` qui. Con quello, TC-01/02/04/05
+    # giravano ma non potevano fallire -- un test che non puo' fallire non e'
+    # un test. Il prezzo dichiarato: a laptop spento questo run risulta rosso.
+    # Un rosso "no runner" non e' un rosso "test fallito": si distinguono
+    # aprendo il run. `functional` non e' fra gli status check richiesti su
+    # main, quindi non blocca i merge.
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +52,8 @@ jobs:
           LITELLM_MASTER_KEY: ${{ secrets.LITELLM_MASTER_KEY }}
 
       - name: Test di restore del backup (TC-05)
-        # Il debito #1: un backup non testato non è un backup.
+        # Un backup non testato non e' un backup. Da ADR-0015 questo step puo'
+        # far fallire il workflow: e' il punto.
         run: ./scripts/restore-test.sh
         env:
           VM_SSH: ${{ secrets.VM_SSH_TARGET }}

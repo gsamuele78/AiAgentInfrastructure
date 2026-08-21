@@ -73,6 +73,7 @@ attenzione continua.
 ./scripts/deploy-all.sh --dry-run     # 8 fasi con checkpoint
 ./scripts/detect-hardware.sh --emit-config
 ./scripts/create-vm.sh                # VM riproducibile (cloud-init)
+./scripts/sync_openrouter.py --dry-run  # catalogo OpenRouter nel DB (OPENROUTER-SYNC.md)
 ./scripts/setup-ollama.sh             # LLM locale configurato e verificato
 ./scripts/restore-test.sh             # TC-05: il backup è restorabile?
 ```
@@ -112,12 +113,12 @@ attenzione continua.
 2. Nessun alerting (accettabile per uso personale)
 3. Credenziali storiche esposte in un file 664 → **ruotarle** (non risulta fatto)
 4. Nessuno scan CVE delle immagini
-5. `sync_openrouter.py` **non esiste**: ADR-0004 è deciso ma non implementato,
-   quindi F8 non c'è e vale solo il wildcard `openrouter/*`
+5. `sync_openrouter.py` esiste ma **non è mai stato eseguito contro OpenRouter
+   reale**: la logica è testata contro un gateway finto, non contro il servizio
 6. **Lo stack non è mai stato deployato**: nessun ✅ del repo significa "visto
    funzionare". Il primo deploy è anche il primo test reale della catena
-7. `functional.yml` ha `continue-on-error: true` **sul job**: TC-01/02/04/05
-   girano ma non possono far fallire nulla — l'unico gate reale è la CI statica
+7. Da ADR-0015 `functional.yml` può fallire davvero, ma **a laptop spento il
+   run settimanale risulta rosso**: se diventa costante, la decisione va rivista
 8. Il repo è **pubblico**: mai aggiungere `pull_request` ai trigger di un
    workflow `self-hosted` (`GITHUB-SETUP.md` §4), mai versionare FQDN interni,
    nomi macchina o path personali — `test-scripts.sh` §3 lo verifica

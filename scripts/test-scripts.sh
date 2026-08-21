@@ -24,6 +24,7 @@ sec "2. Contratto: ogni script supporta --dry-run o è read-only"
 # esporre --dry-run. La lista non e' piu' hardcoded: si deriva da scripts/*.sh,
 # cosi' un nuovo script entra automaticamente nel contratto (invariante #9).
 READONLY="detect-hardware.sh devops-audit.sh test-all.sh test-scripts.sh"
+READONLY_PY="audit-integration.py"
 DRYRUN_SCRIPTS=""
 for f in scripts/*.sh; do
   b=$(basename "$f")
@@ -39,6 +40,14 @@ for f in scripts/*.sh; do
   fi
 done
 
+# Anche gli script python che modificano lo stato devono esporre --dry-run.
+for f in scripts/*.py; do
+  b=$(basename "$f")
+  case " $READONLY_PY " in *" $b "*) ok "$b è read-only"; continue;; esac
+  grep -q -- '--dry-run' "$f" && ok "$b espone --dry-run" \
+    || ko "$b senza --dry-run" "modifica il DB del gateway: deve poterlo simulare"
+done
+
 sec "2b. TC-08: i dry-run completano anche su una macchina vuota"
 # Cercare la stringa '--dry-run' col grep non dimostra nulla: il dry-run va
 # ESEGUITO. È così che si scopre che create-vm.sh moriva su $USER non impostato.
@@ -46,6 +55,11 @@ for b in $DRYRUN_SCRIPTS; do
   if out=$(env -u USER "scripts/$b" --dry-run 2>&1); then ok "$b --dry-run esce 0"
   else ko "$b --dry-run fallisce (exit $?)" "$(echo "$out" | tail -3)"; fi
 done
+# sync_openrouter.py e' escluso da 2b per costruzione: il suo dry-run calcola un
+# diff, quindi ha bisogno del catalogo OpenRouter E del gateway. Su una macchina
+# vuota esce 2 ("prerequisiti mancanti"), che e' il comportamento giusto: non e'
+# un crash, e' un rifiuto motivato. Il suo test vero e' F8, livello L5.
+echo -e "  \033[2m–\033[0m sync_openrouter.py --dry-run \033[2m(serve il gateway: test L5, non L1b)\033[0m"
 
 sec "3. Invarianti di sicurezza nel codice"
 # Ollama non deve mai essere bindato su tutte le interfacce
@@ -137,6 +151,17 @@ grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
   && ok "vLLM su loopback (solo nginx lo espone)" || ko "vLLM non su loopback"
 # config montate read-only
 grep -q ':ro' services/docker-compose.yml && ok "config montata :ro" || ko "config non :ro"
+
+# ADR-0015: un job con `continue-on-error: true` gira ma non puo' fallire.
+# E' come non averlo. `continue-on-error` a livello di STEP resta lecito.
+for wf in .github/workflows/*.yml; do
+  if grep -qE '^\s{4}continue-on-error:\s*true' "$wf"; then
+    ko "$(basename "$wf"): continue-on-error a livello di job" \
+       "ADR-0015: un test che non puo' fallire non e' un test"
+  else
+    ok "$(basename "$wf"): nessun job non-bloccante"
+  fi
+done
 
 # Repo pubblico + runner self-hosted: un trigger `pull_request` su un workflow
 # self-hosted = esecuzione di codice arbitrario sull'host (GITHUB-SETUP.md §4).

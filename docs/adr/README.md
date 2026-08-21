@@ -14,10 +14,11 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
 | [0007](0007-una-memoria-per-livello.md) | Una memoria per livello | Accepted — file canonico **superseded by 0013** |
 | [0008](0008-ollama-su-host.md) | Ollama su host, no passthrough | Accepted |
 | [0009](0009-mtls-per-biome.md) | mTLS M2M, Keycloak per umani | Accepted |
-| [0010](0010-ci-non-cd.md) | CI di validazione, nessun CD | Accepted |
+| [0010](0010-ci-non-cd.md) | CI di validazione, nessun CD | Accepted — `continue-on-error` **superseded by 0015** |
 | [0011](0011-cloud-init-per-la-vm.md) | cloud-init invece di installazione manuale | Accepted |
 | [0012](0012-repo-separato-per-multi-tenant.md) | Repo separato per il multi-tenant BIOME | Accepted |
 | [0013](0013-agents-md-come-memoria-di-progetto.md) | AGENTS.md come memoria di progetto | Accepted |
 | [0014](0014-headroom-standalone-per-la-lane-abbonamento.md) | Headroom standalone sulla sola lane abbonamento | Accepted — **eccezione** a 0001/0003 |
+| [0015](0015-test-funzionali-bloccanti.md) | I test funzionali possono fallire | Accepted |
 
 Template: `_template.md`. Regole in `CONTRIBUTING.md`.
