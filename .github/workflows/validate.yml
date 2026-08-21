@@ -83,14 +83,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # --env-file invece di creare un .env: la CI non deve lasciare nel
-      # workspace un file che .gitignore esclude apposta.
+      # Il .env va creato davvero: `--env-file` cambia solo l'interpolazione
+      # delle variabili, NON soddisfa la chiave `env_file:` del servizio, che
+      # richiede il file su disco. Il workspace del runner e' effimero.
       - name: compose config
         working-directory: services
-        run: docker compose --env-file .env.example config >/dev/null && echo OK
+        run: cp .env.example .env && docker compose config >/dev/null && echo OK
       - name: compose BIOME valido
         working-directory: services-biome
-        run: BIND_IP=127.0.0.1 docker compose --env-file .env.example config >/dev/null && echo OK
+        run: cp .env.example .env && BIND_IP=127.0.0.1 docker compose config >/dev/null && echo OK
       - name: docker build
         working-directory: services
         # Il Dockerfile contiene il gate `import HeadroomCallback`: se il

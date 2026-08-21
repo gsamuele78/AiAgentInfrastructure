@@ -104,6 +104,7 @@ attenzione continua.
 | `headroom-ai[all]` su linux | immagine da ~3 GB (torch) | il callback usa solo il core: `HEADROOM_EXTRAS` vuoto |
 | `ports:` + `network_mode: service:` | `docker compose config` passa, `up` no | pubblica la porta sul servizio che possiede il netns |
 | `$USER` non impostato | `set -u` uccide il dry-run | `${USER:-$(id -un)}` |
+| `docker compose --env-file X config` al posto di un `.env` vero | `env file .../.env not found` | `--env-file` cambia solo l'interpolazione, non soddisfa la chiave `env_file:` del servizio: il file deve esistere |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 

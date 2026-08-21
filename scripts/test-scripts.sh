@@ -104,9 +104,15 @@ for d in services services-biome; do
     python3 -c "import yaml,sys; yaml.safe_load(open('$d/docker-compose.yml'))" \
       && ok "$d/docker-compose.yml valido" || ko "$d/docker-compose.yml non valido"
   elif command -v docker >/dev/null 2>&1; then
-    # --env-file: NON si scrive un .env dentro il repo. Questo script dichiara
+    # `docker compose config` richiede un .env vero: --env-file cambia solo
+    # l'interpolazione, non soddisfa la chiave `env_file:` del servizio.
+    # Lo creiamo temporaneamente e lo togliamo SEMPRE: questo script dichiara
     # di non toccare nulla e deve essere vero anche nel ramo di fallback.
-    ( cd "$d" && BIND_IP=127.0.0.1 docker compose --env-file .env.example config >/dev/null 2>&1 ) \
+    # ENVF assoluto: il trap scatta DOPO il cd, un path relativo punterebbe altrove.
+    ( ENVF="$PWD/$d/.env"; TMPENV=0
+      [ -f "$ENVF" ] || { cp "$PWD/$d/.env.example" "$ENVF"; TMPENV=1; }
+      trap '[ "$TMPENV" = 1 ] && rm -f "$ENVF"' EXIT
+      cd "$d" && BIND_IP=127.0.0.1 docker compose config >/dev/null 2>&1 ) \
       && ok "$d/docker-compose.yml valido (via docker compose)" \
       || echo -e "  \033[2m–\033[0m $d/docker-compose.yml non verificabile qui"
   else
