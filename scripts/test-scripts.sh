@@ -179,6 +179,40 @@ for wf in .github/workflows/*.yml; do
   fi
 done
 
+# La GPU si cerca sul BUS PCI, non nella presenza di nvidia-smi: dedurre
+# l'hardware da un binario mente su OS atomico senza driver proprietari
+# (Bazzite/Silverblue), a dGPU spenta (Optimus) e dentro un container.
+for f in scripts/detect-hardware.sh scripts/setup-ollama.sh; do
+  b=$(basename "$f")
+  grep -q 'nvidia_pci_devices' "$f" \
+    && ok "$b rileva la GPU dal bus PCI, non da nvidia-smi" \
+    || ko "$b deduce la GPU dalla presenza di nvidia-smi" "falso negativo su OS atomico o dGPU spenta"
+done
+# Ogni script che modifica l'HOST deve rifiutarsi di partire da dentro un
+# sandbox: scriverebbe nel sandbox lasciando il sistema com'era, e il silenzio
+# e' il modo peggiore di sbagliare. Su Bazzite capita spesso: molte app,
+# terminali compresi, sono Flatpak.
+for b in $DRYRUN_SCRIPTS; do
+  case "$b" in backup-db.sh|restore-test.sh) continue ;; esac  # girano NELLA VM
+  grep -q 'sandbox_guard' "scripts/$b" && ok "$b si ferma se e' dentro un sandbox" \
+    || ko "$b non controlla il sandbox" "da un Flatpak scriverebbe nel sandbox, non sull'host"
+done
+
+# I comandi d'installazione non possono essere hardcoded su una distribuzione:
+# `apt install` su Fedora/Bazzite e' un consiglio che non funziona.
+# Eccezione legittima: il blocco cloud-init di create-vm.sh e' DATO, non
+# codice eseguito qui, e la VM e' Debian per costruzione (IMG_URL punta a una
+# cloud image Debian). Le righe fra <<CIEOF e CIEOF sono quindi escluse.
+PKGHITS=$(for f in scripts/*.sh; do
+  [ "$(basename "$f")" = test-scripts.sh ] && continue
+  awk -v F="$f" '
+    /<<CIEOF/ {inci=1} inci && /^CIEOF$/ {inci=0; next}
+    !inci && /(apt|apt-get|dnf|pacman|zypper)[[:space:]]+install/ {printf "%s:%d:%s\n", F, NR, $0}
+  ' "$f"
+done)
+[ -z "$PKGHITS" ] && ok "nessun gestore di pacchetti hardcoded (si usa pkg_hint)" \
+  || ko "comando d'installazione hardcoded negli script" "$(echo "$PKGHITS" | head -3)"
+
 # Ogni hostname usato come api_base nel config del gateway deve corrispondere a
 # un servizio del compose (o essere un IP/host esterno). Un `biome-tls` senza
 # servizio non risolve: la lane fallisce al primo uso, non al deploy.
