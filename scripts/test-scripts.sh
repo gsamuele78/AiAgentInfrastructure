@@ -33,7 +33,9 @@ for f in scripts/*.sh; do
       && ko "$b dichiarato read-only ma modifica il sistema" || ok "$b è read-only"
     continue;;
   esac
-  if grep -q -- '--dry-run' "$f"; then
+  # Fuori dai commenti: un commento d'uso che cita --dry-run senza che il flag
+  # sia parsato passerebbe il controllo e non simulerebbe niente.
+  if grep -v '^[[:space:]]*#' "$f" | grep -q -- '--dry-run'; then
     ok "$b espone --dry-run"; DRYRUN_SCRIPTS="$DRYRUN_SCRIPTS $b"
   else
     ko "$b senza --dry-run" "gli script che modificano il sistema devono poterlo simulare"
@@ -44,7 +46,10 @@ done
 for f in scripts/*.py; do
   b=$(basename "$f")
   case " $READONLY_PY " in *" $b "*) ok "$b è read-only"; continue;; esac
-  grep -q -- '--dry-run' "$f" && ok "$b espone --dry-run" \
+  # In python i docstring non iniziano con '#': togliere i commenti non basta,
+  # il flag va cercato come STRINGA nel codice (add_argument("--dry-run")),
+  # altrimenti un docstring d'uso che lo cita basterebbe a passare.
+  grep -qE "[\"']--dry-run[\"']" "$f" && ok "$b espone --dry-run" \
     || ko "$b senza --dry-run" "modifica il DB del gateway: deve poterlo simulare"
 done
 
@@ -98,8 +103,7 @@ else ok "lane locale: nomi coerenti (local-fast / local-good)"; fi
 # Copre utenti, nomi macchina e domini interni. NON gli IP: distinguerne uno
 # interno da 0.0.0.0 o dalla subnet libvirt richiederebbe un pattern fragile --
 # per quelli vale la regola scritta in GITHUB-SETUP.md, non un grep.
-LEAKS=$(grep -rInE '(@?\bjfs\b|\bermes\b|\.unibo\.it)' \\
-  --exclude-dir=.git --exclude=test-scripts.sh . 2>/dev/null | grep -viE 'permess|CHANGEME|<dominio' || true)
+LEAKS=$(grep -rInE '(@?\bjfs\b|\bermes\b|\.unibo\.it)' --exclude-dir=.git --exclude=test-scripts.sh . 2>/dev/null | grep -viE 'permess|CHANGEME|<dominio' || true)
 [ -z "$LEAKS" ] && ok "nessun identificatore interno versionato (repo pubblico)" \
   || ko "identificatore interno nei file versionati" "$(echo "$LEAKS" | head -3)"
 

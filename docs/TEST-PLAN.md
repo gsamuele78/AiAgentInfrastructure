@@ -91,6 +91,18 @@ aprendo il run. `functional` non è fra gli status check richiesti su `main`
 è un segnale da guardare, non un cancello. Se il rosso diventa costante perché
 il laptop è sempre spento, la decisione va rivista, non subita.
 
+**I guard sono verificati per mutazione.** Un test che non puo' fallire non
+serve a niente, e non basta che sia verde: va visto fallire. Il 2026-08-21 il
+guard anti-leak per il repo pubblico e' stato scoperto essere un **no-op** —
+una continuazione di riga scritta `\\` invece di `\` faceva cercare a grep un
+file inesistente, e la seconda meta' del comando finiva in `2>/dev/null`.
+Passava sempre. Da allora ogni nuovo controllo di `test-scripts.sh` si verifica
+piantando il difetto che deve intercettare e controllando che il test diventi
+rosso: identificatore interno versionato, `continue-on-error` a livello di job,
+trigger `pull_request` su workflow self-hosted, `pip` nel Dockerfile, `:8787`
+nei client, `--dry-run` mancante. Due controlli su sei erano difettosi e sono
+stati scoperti cosi'.
+
 **TC-08 e `sync_openrouter.py`:** il dry-run di questo script calcola un diff,
 quindi ha bisogno del catalogo OpenRouter *e* del gateway. Su una macchina vuota
 esce `2` («prerequisiti mancanti»), che è il comportamento corretto — un rifiuto
