@@ -33,6 +33,35 @@ NET="${NET:-default}"
 IMG_URL="${IMG_URL:-https://cloud.debian.org/images/cloud/trixie/latest/debian-13-genericcloud-amd64.qcow2}"
 CACHE="${CACHE:-$HOME/.cache/libvirt-images}"
 
+# --os-variant serve SOLO a far scegliere a virt-install i default dei device
+# (virtio, clock, chipset): fra due release Debian vicine sono identici. Ma un
+# nome che l'osinfo-db dell'host non conosce fa FALLIRE virt-install con
+# "Unknown OS name", e osinfo-db viaggia con la distribuzione dell'host, non
+# con l'immagine. Quindi: si usa il nome giusto per l'immagine, e si ripiega
+# sulla release precedente solo se si e' potuto VERIFICARE che manca.
+# Override esplicito:  OS_VARIANT=debian13 ./create-vm.sh
+pick_os_variant(){
+  local want="$1" fallback="$2" known=""
+  if command -v osinfo-query >/dev/null 2>&1; then
+    known=$(osinfo-query os 2>/dev/null)
+  elif command -v virt-install >/dev/null 2>&1; then
+    known=$(virt-install --osinfo list 2>/dev/null)
+  fi
+  # Senza modo di interrogare l'osinfo-db si tiene il nome corretto: il
+  # fallback e' per l'host vecchio dimostrato, non per il dubbio.
+  [ -z "$known" ] && { echo "$want"; return; }
+  echo "$known" | grep -qw -- "$want" && echo "$want" || echo "$fallback"
+}
+# La major version si deriva dall'IMG_URL: cambiando immagine, l'os-variant la segue.
+DEB_MAJOR=$(printf '%s' "$IMG_URL" | sed -n 's/.*debian-\([0-9]\{1,\}\)-.*/\1/p')
+if [ -n "$DEB_MAJOR" ]; then
+  OS_VARIANT="${OS_VARIANT:-$(pick_os_variant "debian${DEB_MAJOR}" "debian$((DEB_MAJOR-1))")}"
+else
+  # IMG_URL personalizzata e non-Debian: senza indizi, 'generic' e' l'unico
+  # nome che ogni osinfo-db conosce.
+  OS_VARIANT="${OS_VARIANT:-generic}"
+fi
+
 DRY=0; DESTROY=0
 for a in "$@"; do case "$a" in --dry-run) DRY=1;; --destroy) DESTROY=1;; esac; done
 run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
@@ -192,7 +221,7 @@ run "sudo virt-install \
   --disk path='$DISK',format=qcow2,bus=virtio \
   --disk path='$SEED',device=cdrom \
   --network network=$NET,mac=$MAC,model=virtio \
-  --os-variant debian12 \
+  --os-variant $OS_VARIANT \
   --graphics none --console pty,target_type=serial \
   --import --noautoconsole"
 run "virsh -c qemu:///system autostart '$VM_NAME'"
@@ -215,7 +244,7 @@ fi
 
 cat <<NEXT
 
-  VM:   $VM_NAME   ($VM_VCPU vCPU, ${VM_RAM_MB}MB, ${VM_DISK_GB}G qcow2)
+  VM:   $VM_NAME   ($VM_VCPU vCPU, ${VM_RAM_MB}MB, ${VM_DISK_GB}G qcow2, os-variant $OS_VARIANT)
   IP:   $VM_IP     (riserva DHCP: non cambia più)
   SSH:  ssh $VM_USER@$VM_IP
 

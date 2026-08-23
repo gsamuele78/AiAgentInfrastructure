@@ -213,6 +213,26 @@ done)
 [ -z "$PKGHITS" ] && ok "nessun gestore di pacchetti hardcoded (si usa pkg_hint)" \
   || ko "comando d'installazione hardcoded negli script" "$(echo "$PKGHITS" | head -3)"
 
+# create-vm.sh: l'--os-variant deve SEGUIRE l'immagine, non essere un letterale.
+# Un nome scritto a mano si disallinea in silenzio quando cambia la stable, e
+# nessuno se ne accorge perche' virt-install non protesta per una release vicina.
+grep -qE -- '--os-variant[[:space:]]+debian[0-9]' scripts/create-vm.sh \
+  && ko "create-vm.sh ha un --os-variant scritto a mano" "va derivato da IMG_URL (pick_os_variant)" \
+  || ok "create-vm.sh deriva l'--os-variant dall'immagine"
+# E il valore emesso deve combaciare con l'immagine (o ripiegare di una release).
+OSV_OUT=$(env -u USER scripts/create-vm.sh --dry-run 2>&1)
+IMG_MAJ=$(printf '%s' "$OSV_OUT" | sed -n 's/.*debian-\([0-9]\{1,\}\)-genericcloud.*/\1/p' | head -1)
+VAR_MAJ=$(printf '%s' "$OSV_OUT" | sed -n 's/.*--os-variant debian\([0-9]\{1,\}\).*/\1/p' | head -1)
+if [ -n "$IMG_MAJ" ] && [ -n "$VAR_MAJ" ]; then
+  if [ "$VAR_MAJ" = "$IMG_MAJ" ] || [ "$VAR_MAJ" = "$((IMG_MAJ-1))" ]; then
+    ok "os-variant (debian$VAR_MAJ) coerente con l'immagine (debian$IMG_MAJ)"
+  else
+    ko "os-variant debian$VAR_MAJ contro immagine debian$IMG_MAJ" "disallineati"
+  fi
+else
+  echo -e "  \033[2m–\033[0m os-variant non verificabile (dry-run senza immagine Debian)"
+fi
+
 # Ogni hostname usato come api_base nel config del gateway deve corrispondere a
 # un servizio del compose (o essere un IP/host esterno). Un `biome-tls` senza
 # servizio non risolve: la lane fallisce al primo uso, non al deploy.

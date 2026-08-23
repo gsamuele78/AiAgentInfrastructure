@@ -117,6 +117,8 @@ attenzione continua.
 | `readlink -f` su un symlink assente | stampa il percorso risolto invece di niente | `[ -L ]` prima, poi `readlink` semplice |
 | script lanciato da un terminale **Flatpak** | `nvidia-smi`/`virsh`/`docker` "assenti" e `/` a tmpfs, ma l'host li ha | `sandbox_kind()`; gli script che toccano l'host si fermano, `flatpak-spawn --host` per rieseguire |
 | `virt-manager` Flatpak scambiato per libvirt | e' solo la GUI: `virt-install`/`virsh`/`cloud-localds` restano assenti | serve il layer sull'host (`rpm-ostree install`) |
+| `--os-variant` scritto a mano | si disallinea in silenzio quando cambia la stable; un nome ignoto all'osinfo-db dell'host fa fallire `virt-install` | derivalo da `IMG_URL` (`pick_os_variant`), col fallback alla release precedente |
+| URL con la point release dentro un path `current/` | il link marcisce a ogni point release | ricava il nome da `SHA512SUMS`, o usa la cloud image che non la contiene |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 
