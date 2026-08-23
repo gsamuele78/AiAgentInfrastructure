@@ -6,13 +6,24 @@ Obiettivo: la VM più piccola che regga `litellm + postgres`. ~1.5 GB installati
 | Opzione | Dim. | URL |
 |---|---|---|
 | **mini.iso** (netboot, la più piccola) | ~60 MB | `https://deb.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso` |
-| **netinst** (consigliata, più robusta) | ~700 MB | `https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.6.0-amd64-netinst.iso` |
+| **netinst** (consigliata, più robusta) | ~700 MB | vedi sotto: il nome del file cambia a ogni point release |
 
-Usa il path `current/` per non restare su una versione vecchia. Verifica sempre:
+Il path `current/` punta sempre alla stable in corso, ma **il nome del file
+contiene la point release** (`debian-13.X.Y-amd64-netinst.iso`) e cambia ogni
+paio di mesi: scriverlo a mano qui significa scrivere un link che marcisce.
+Ricavalo dall'indice, che è anche il modo di verificare il checksum:
+
 ```bash
-wget https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA512SUMS
+BASE=https://cdimage.debian.org/debian-cd/current/amd64/iso-cd
+wget -q "$BASE/SHA512SUMS"
+ISO=$(awk '/-netinst\.iso$/{print $2; exit}' SHA512SUMS)   # nome corrente
+wget "$BASE/$ISO"
 sha512sum -c SHA512SUMS --ignore-missing
 ```
+
+> Percorso automatico consigliato: `scripts/create-vm.sh` usa la **cloud image**
+> (`debian-13-genericcloud-amd64.qcow2`), il cui URL non contiene la point
+> release e quindi non invecchia. Questa pagina è il fallback manuale.
 
 ## Risorse
 | Risorsa | Valore | Perché |

@@ -3,10 +3,16 @@
 # Non distruttivo: stop/disable + backup. --dry-run disponibile.
 #   KEEP_HEADROOM=1  conserva headroom.service (variante B di DUAL-AUTH, ADR-0014)
 set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=lib/hw-detect.sh
+. "$HERE/lib/hw-detect.sh"
 DRY=0; [ "${1:-}" = "--dry-run" ] && DRY=1
 run(){ if [ "$DRY" = 1 ]; then echo "  [dry] $*"; else eval "$*"; fi; }
 say(){ echo -e "\033[36m==>\033[0m $*"; }
 ts(){ date +%Y%m%d-%H%M%S; }
+
+# Il nome lo dice: pulisce l'HOST. Da un sandbox toccherebbe il sandbox.
+sandbox_guard "scripts/cleanup-host.sh" "$DRY" || exit 1
 
 say "PRE-CHECK: il gateway risponde?"
 if curl -fsS --max-time 3 http://127.0.0.1:4000/health/liveliness >/dev/null 2>&1; then

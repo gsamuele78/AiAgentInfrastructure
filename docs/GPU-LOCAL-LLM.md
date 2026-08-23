@@ -76,3 +76,65 @@ Tuning offload: `ollama run qwen2.5-coder:7b --verbose` → `/set parameter num_
 ## Se cambi hardware
 Con una GPU 12-16 GB (o il cluster BIOME) `qwen2.5-coder:14b` diventa Tier 1.
 La topologia non cambia: sposti solo `api_base`.
+
+## OS atomici (Bazzite, Silverblue, Kinoite, Bluefin)
+
+`detect-hardware.sh` cerca la GPU sul **bus PCI** (`vendor 0x10de`, classe
+`0x03xx`), non nella presenza di `nvidia-smi`: dedurre l'hardware da un binario
+produce un falso negativo proprio dove capita più spesso — immagine senza
+driver proprietari, dGPU spenta da Optimus/supergfxctl, o script eseguito in un
+container che non vede i binari dell'host.
+
+**Il driver NVIDIA non si installa: si cambia immagine.** Su Bazzite e sugli
+altri uBlue il driver proprietario è dentro l'immagine, quindi:
+
+```bash
+# KDE
+rpm-ostree rebase ostree-unverified-registry:ghcr.io/ublue-os/bazzite-nvidia:stable
+# GNOME
+rpm-ostree rebase ostree-unverified-registry:ghcr.io/ublue-os/bazzite-gnome-nvidia:stable
+systemctl reboot
+```
+
+Poi `nvidia-smi` esiste e `detect-hardware.sh` misura la VRAM come su qualsiasi
+altra distribuzione. `ujust --list` mostra le ricette del tuo sistema.
+
+Altre due cose cambiano su un OS atomico, e gli script ne tengono conto:
+
+| Cosa | Su un OS atomico |
+|---|---|
+| Installare pacchetti | `rpm-ostree install ...` + **reboot**, non `dnf`/`apt` |
+| Firewall | `firewalld`, non `ufw` — `setup-ollama.sh` usa una *rich rule* per aprire la 11434 solo alla subnet libvirt |
+| Spazio disco | `df /` riporta l'overlay **composefs** (circa metà della RAM): per il qcow2 conta `/var`, ed è quello che lo script misura |
+
+### Attenzione al sandbox: su Bazzite molte app sono Flatpak
+
+Se lanci gli script da un terminale **Flatpak** (o da una toolbox/distrobox),
+non vedi i comandi dell'host: `nvidia-smi`, `virsh` e `docker` risultano
+assenti anche quando sull'host ci sono. `/sys` invece è visibile, quindi il
+rilevamento PCI della GPU funziona lo stesso — ed è così che si riconosce il
+caso: **hardware trovato, `driver: nvidia`, ma `nvidia-smi` non risponde**.
+
+`detect-hardware.sh` lo dice esplicitamente e rilegge ogni «assente» come «non
+esposto nel sandbox». Per un quadro vero:
+
+```bash
+flatpak-spawn --host ./scripts/detect-hardware.sh   # da un Flatpak
+distrobox-host-exec ./scripts/detect-hardware.sh    # da una distrobox
+```
+
+Gli script che **modificano l'host** — `setup-ollama.sh`, `create-vm.sh`,
+`cleanup-host.sh`, `deploy-all.sh`, `stack-selective-install.sh` — si
+**rifiutano di partire** da dentro un sandbox: scriverebbero nel sandbox
+lasciando il sistema com'era, e il silenzio è il modo peggiore di sbagliare.
+Con `--dry-run` avvisano e proseguono, perché lì non scrivono niente.
+
+> `virt-manager` installato come **Flatpak** (via Bazaar o Discover) è la sola
+> GUI: può pilotare un `libvirtd` che gira sull'host, ma non fornisce
+> `virt-install`, `virsh`, `qemu-img` e `cloud-localds`, che sono i comandi che
+> `create-vm.sh` invoca. Per quelli serve il layer sull'host:
+> `rpm-ostree install libvirt virt-install virt-manager cloud-utils qemu-img`
+> più un reboot.
+
+Ollama stesso si installa senza problemi: `/usr/local` è un symlink a
+`/var/usrlocal`, scrivibile, e l'unit systemd finisce in `/etc/systemd/system`.
