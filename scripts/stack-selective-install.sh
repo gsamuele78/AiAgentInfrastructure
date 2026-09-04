@@ -20,9 +20,11 @@ need npx "serve npx"   || true
 
 # shellcheck source=lib/hw-detect.sh
 . "$HERE/lib/hw-detect.sh"
-# Sovrascrive ~/.claude, ~/.codex e ~/.config/opencode dell'HOST: da dentro un
-# sandbox scriverebbe nel sandbox, lasciando i config veri intatti.
-sandbox_guard "scripts/stack-selective-install.sh" "$DRY" || exit 1
+# Modalita' 'warn', non 'block': questo script scrive SOLO config utente
+# (~/.claude, ~/.codex, ~/.config/opencode, $PROJ/.serena) e installa tool con
+# uv/npx. Dentro un devcontainer configurarli li' e' legittimo, non un errore --
+# a differenza di chi tocca systemd o libvirt, che sono stato di sistema.
+sandbox_guard "scripts/stack-selective-install.sh" "$DRY" warn || exit 1
 
 PROJ="${ARGS[0]:-$PWD}"
 

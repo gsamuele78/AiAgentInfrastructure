@@ -66,6 +66,10 @@ done
 # un crash, e' un rifiuto motivato. Il suo test vero e' F8, livello L5.
 echo -e "  \033[2m–\033[0m sync_openrouter.py --dry-run \033[2m(serve il gateway: test L5, non L1b)\033[0m"
 
+# Il comando atteso dipende dall'OS su cui gira il test: si chiede alla stessa
+# funzione che lo script usa, invece di scrivere "apt install" a mano qui.
+pkg_hint_probe(){ ( . scripts/lib/hw-detect.sh; pkg_hint libvirt | awk '{print $1" "$2}' ); }
+
 sec "3. Invarianti di sicurezza nel codice"
 # Ollama non deve mai essere bindato su tutte le interfacce
 grep -q 'OLLAMA_HOST=.*0\.0\.0\.0' scripts/setup-ollama.sh \
@@ -212,6 +216,36 @@ PKGHITS=$(for f in scripts/*.sh; do
 done)
 [ -z "$PKGHITS" ] && ok "nessun gestore di pacchetti hardcoded (si usa pkg_hint)" \
   || ko "comando d'installazione hardcoded negli script" "$(echo "$PKGHITS" | head -3)"
+
+# create-vm.sh: --destroy e' distruttivo, quindi il sandbox_guard deve venire
+# PRIMA. Da un sandbox le chiamate virsh hanno "|| true" e lo script stampava
+# "VM rimossa" uscendo 0 senza toccare niente: un falso successo su un percorso
+# distruttivo e' peggio di un errore.
+# Controllo STRUTTURALE, non comportamentale: per esercitare davvero il percorso
+# servirebbe passare il nome esatto della VM alla conferma, cioe' far eseguire a
+# una suite dichiarata read-only un `virsh destroy`. Il primo tentativo passava
+# la conferma sbagliata e quindi si fermava li', dando la risposta giusta per il
+# motivo sbagliato -- verde anche col guard spostato dopo.
+GLINE=$(grep -n 'sandbox_guard "scripts/create-vm.sh"' scripts/create-vm.sh | head -1 | cut -d: -f1)
+DLINE=$(grep -n 'if \[ "\$DESTROY" = 1 \]' scripts/create-vm.sh | head -1 | cut -d: -f1)
+if [ -n "$GLINE" ] && [ -n "$DLINE" ] && [ "$GLINE" -lt "$DLINE" ]; then
+  ok "create-vm: il sandbox_guard precede il percorso --destroy"
+else
+  ko "create-vm: --destroy non e' protetto dal sandbox_guard" \
+     "da un sandbox stamperebbe 'VM rimossa' uscendo 0 senza toccare niente"
+fi
+# Il comando d'installazione deve arrivare anche in esecuzione REALE: morendo
+# sul primo tool mancante non veniva mai stampato, e restava solo "manca X".
+PREREQ_OUT=$(env PATH=/nonexistent:/usr/bin:/bin scripts/create-vm.sh 2>&1 || true)
+printf '%s' "$PREREQ_OUT" | grep -q "$(pkg_hint_probe)" \
+  && ok "create-vm stampa il comando d'installazione anche fuori dal dry-run" \
+  || ko "create-vm non stampa il comando d'installazione in esecuzione reale" "die sul primo mancante lo rendeva irraggiungibile"
+# firewalld: la zona conta. libvirt mette virbr0 in una zona che RIFIUTA il
+# traffico verso l'host tranne dhcp/dns/ssh/tftp/icmp; una rich rule nella zona
+# default non si applica, e la porta resta chiusa mentre lo script dice il contrario.
+grep -q 'get-zone-of-interface' scripts/setup-ollama.sh \
+  && ok "setup-ollama apre la porta nella zona di virbr0, non nella default" \
+  || ko "setup-ollama usa la zona firewalld default" "virbr0 sta nella zona 'libvirt': la regola non si applicherebbe"
 
 # create-vm.sh: l'--os-variant deve SEGUIRE l'immagine, non essere un letterale.
 # Un nome scritto a mano si disallinea in silenzio quando cambia la stable, e
