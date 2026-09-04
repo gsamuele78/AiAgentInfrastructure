@@ -119,6 +119,11 @@ attenzione continua.
 | `virt-manager` Flatpak scambiato per libvirt | e' solo la GUI: `virt-install`/`virsh`/`cloud-localds` restano assenti | serve il layer sull'host (`rpm-ostree install`) |
 | `--os-variant` scritto a mano | si disallinea in silenzio quando cambia la stable; un nome ignoto all'osinfo-db dell'host fa fallire `virt-install` | derivalo da `IMG_URL` (`pick_os_variant`), col fallback alla release precedente |
 | URL con la point release dentro un path `current/` | il link marcisce a ogni point release | ricava il nome da `SHA512SUMS`, o usa la cloud image che non la contiene |
+| rich rule firewalld nella zona **default** | la porta resta chiusa e lo script dice il contrario: libvirt mette virbr0 nella zona `libvirt`, che rifiuta il traffico verso l'host | `--zone=$(firewall-cmd --get-zone-of-interface=virbr0)` |
+| `die` sul primo prerequisito mancante | l'elenco completo e il comando d'installazione non vengono mai stampati | raccogli tutti i mancanti, poi esci una volta sola |
+| guard messo dopo un percorso distruttivo | `--destroy` da un sandbox stampava "VM rimossa" uscendo 0 | il guard va **prima** del ramo che distrugge |
+| `set -o pipefail` con un comando che deve fallire a sinistra della pipe | il pipeline torna 1 anche quando `grep` ha trovato | cattura l'output, poi filtralo |
+| test comportamentale su un percorso che chiede conferma | verde per il motivo sbagliato (si ferma alla conferma, non al guard) | asserzione strutturale, o passa la conferma vera |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 

@@ -70,6 +70,12 @@ ok(){ echo -e "  \033[32m✓\033[0m $*"; }
 warn(){ echo -e "  \033[33m!\033[0m $*"; }
 die(){ echo -e "  \033[31m✗\033[0m $*" >&2; exit 1; }
 
+# Il guard va PRIMA di --destroy: da un sandbox virsh non c'e', le due chiamate
+# hanno `|| true`, e lo script stampava "VM rimossa" uscendo 0 senza aver
+# toccato niente. Un falso successo su un percorso distruttivo e' peggio di un
+# errore: chi legge crede che la VM non ci sia piu'.
+sandbox_guard "scripts/create-vm.sh" "$DRY" || exit 1
+
 # ---------------------------------------------------------------- destroy
 if [ "$DESTROY" = 1 ]; then
   say "Rimozione VM $VM_NAME"
@@ -80,23 +86,28 @@ if [ "$DESTROY" = 1 ]; then
   ok "VM rimossa"; exit 0
 fi
 
-# La VM si crea sull'HOST: da un sandbox non si raggiunge libvirtd di sistema.
-sandbox_guard "scripts/create-vm.sh" "$DRY" || exit 1
-
 # ---------------------------------------------------------------- checks
-# TC-08: in --dry-run un prerequisito mancante e' un AVVISO, non un errore.
-# Il dry-run deve completare anche su una macchina che non ha nulla installato:
-# serve a leggere cosa farebbe, non a verificare che si possa fare.
+say "1. Prerequisiti"
+# Si raccolgono TUTTI i mancanti e si esce una volta sola: morire sul primo
+# nascondeva l'elenco completo e, soprattutto, non arrivava mai a stampare il
+# comando d'installazione, che e' l'unica cosa utile del messaggio.
+MISSING=""
+for t in virt-install virsh qemu-img cloud-localds wget; do
+  command -v "$t" >/dev/null || MISSING="$MISSING $t"
+done
+if [ -n "$MISSING" ]; then
+  for t in $MISSING; do warn "manca '$t'"; done
+  # Il comando giusto dipende dall'OS: un hint Debian su Fedora/Bazzite non
+  # funziona, e su un OS atomico serve rpm-ostree piu' un reboot.
+  echo "     $(pkg_hint libvirt)"
+  [ "$DRY" = 1 ] || die "prerequisiti mancanti: installa quanto sopra"
+else
+  ok "strumenti presenti"
+fi
+# In --dry-run un prerequisito mancante e' un avviso: il dry-run serve a leggere
+# cosa farebbe, non a verificare che si possa fare.
 miss(){ if [ "$DRY" = 1 ]; then warn "$*"; else die "$*"; fi; }
 
-say "1. Prerequisiti"
-MISSING=0
-for t in virt-install virsh qemu-img cloud-localds wget; do
-  command -v "$t" >/dev/null || { MISSING=1; miss "manca '$t'"; }
-done
-# Il comando giusto dipende dall'OS: un hint Debian su Fedora/Bazzite non
-# funziona, e su un OS atomico serve rpm-ostree piu' un reboot.
-[ "$MISSING" = 0 ] && ok "strumenti presenti" || echo "     $(pkg_hint libvirt)"
 [ -r "$SSH_KEY" ] && ok "chiave SSH: $SSH_KEY" \
   || miss "chiave SSH non trovata: $SSH_KEY  (ssh-keygen -t ed25519)"
 if command -v virsh >/dev/null 2>&1; then

@@ -101,18 +101,31 @@ sleep 3
 # Il firewall non e' ufw dappertutto: su Fedora/RHEL (e quindi su Bazzite e
 # sugli altri OS atomici) e' firewalld. Aprire la porta col comando sbagliato
 # non da' errore: semplicemente non apre niente, e la VM non vede Ollama.
-if command -v ufw >/dev/null 2>&1 && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
-  say "5. Firewall (ufw)"
+#
+# I probe di stato girano sotto `run`: `sudo` fuori da run farebbe comparire una
+# richiesta di password durante un --dry-run, che deve restare senza effetti.
+say "5. Firewall"
+if [ "$DRY" = 1 ]; then
+  echo "  [dry] rileverebbe ufw/firewalld e aprirebbe la 11434 alla sola subnet libvirt"
+  echo "  [dry] su firewalld: nella zona di ${BRIP_IFACE:-virbr0}, non nella zona default"
+elif command -v ufw >/dev/null 2>&1 && sudo ufw status 2>/dev/null | grep -q "Status: active"; then
+  echo "  ufw attivo"
   run "sudo ufw allow from 192.168.122.0/24 to any port 11434 proto tcp"
   ok "consentito solo dalla subnet libvirt"
 elif command -v firewall-cmd >/dev/null 2>&1 && sudo firewall-cmd --state >/dev/null 2>&1; then
-  say "5. Firewall (firewalld)"
-  # rich rule: consente la 11434 SOLO dalla subnet libvirt, non da tutta la rete
-  run "sudo firewall-cmd --permanent --add-rich-rule='rule family=\"ipv4\" source address=\"192.168.122.0/24\" port port=\"11434\" protocol=\"tcp\" accept'"
+  # LA ZONA CONTA. libvirt mette virbr0 nella zona 'libvirt', che ha una regola
+  # <reject/> a bassa priorita' per il traffico diretto all'HOST e consente solo
+  # dhcp/dns/ssh/tftp/icmp (vedi src/network/libvirt.zone in libvirt). Una rich
+  # rule nella zona *default* non si applica a virbr0: la porta resterebbe
+  # chiusa mentre lo script dichiara di averla aperta.
+  ZONE=$(sudo firewall-cmd --get-zone-of-interface=virbr0 2>/dev/null)
+  [ -n "$ZONE" ] || ZONE=libvirt
+  echo "  firewalld attivo — virbr0 e' nella zona '$ZONE'"
+  run "sudo firewall-cmd --permanent --zone='$ZONE' --add-rich-rule='rule family=\"ipv4\" source address=\"192.168.122.0/24\" port port=\"11434\" protocol=\"tcp\" accept'"
   run "sudo firewall-cmd --reload"
-  ok "consentito solo dalla subnet libvirt"
+  ok "consentito dalla subnet libvirt nella zona '$ZONE'"
+  echo "  verifica:  sudo firewall-cmd --zone=$ZONE --list-rich-rules"
 else
-  say "5. Firewall"
   echo "  nessun firewall attivo fra ufw e firewalld: niente da aprire"
 fi
 

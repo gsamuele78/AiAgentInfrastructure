@@ -21,7 +21,10 @@
 # fedora, debian, arch, suse, unknown.
 os_field(){ [ -r "$OS_RELEASE_FILE" ] && sed -n "s/^$1=//p" "$OS_RELEASE_FILE" | tr -d '"' | head -1; }
 
-os_pretty(){ os_field PRETTY_NAME || echo "sconosciuto"; }
+# NB: os_field finisce in una pipeline, quindi il suo exit status e' quello di
+# `head` -- sempre 0, anche a campo assente. Il fallback va sul VALORE, non
+# sullo stato: con `|| echo` non sarebbe mai scattato.
+os_pretty(){ local v; v=$(os_field PRETTY_NAME); echo "${v:-sconosciuto}"; }
 
 os_is_atomic(){ [ -f "$OSTREE_MARKER" ] || command -v rpm-ostree >/dev/null 2>&1; }
 
@@ -103,13 +106,23 @@ host_run_hint(){
 }
 
 # Gli script che MODIFICANO l'host non possono farlo da dentro un sandbox:
-# scriverebbero nel sandbox. $1 = nome dello script, $2 = 1 se dry-run.
+# scriverebbero nel sandbox.
+#   $1 = nome dello script
+#   $2 = 1 se dry-run (allora si avvisa e basta: non si scrive niente)
+#   $3 = block (default) | warn  -- 'warn' per gli script le cui scritture sono
+#        legittimamente locali al container (config utente, non stato di sistema)
+# ALLOW_IN_SANDBOX=1 forza il proseguimento: serve a chi sa di essere in un
+# container privilegiato con il systemd dell'host montato.
 sandbox_guard(){
-  local kind; kind=$(sandbox_kind); [ -n "$kind" ] || return 0
+  local kind mode="${3:-block}"
+  kind=$(sandbox_kind); [ -n "$kind" ] || return 0
   echo -e "  \033[33m!\033[0m sandbox \033[1m$kind\033[0m rilevato: questo script modifica l'HOST" >&2
   echo -e "     \033[2m$(host_run_hint "./$1")\033[0m" >&2
   [ "${2:-0}" = 1 ] && return 0
+  [ "$mode" = warn ] && { echo -e "     \033[2m(scritture locali al sandbox: proseguo)\033[0m" >&2; return 0; }
+  [ "${ALLOW_IN_SANDBOX:-0}" = 1 ] && { echo -e "     \033[2mALLOW_IN_SANDBOX=1: proseguo su tua responsabilita'\033[0m" >&2; return 0; }
   echo -e "  \033[31m✗\033[0m mi fermo: da qui scriverei dentro il sandbox, non sull'host" >&2
+  echo -e "     \033[2m(ALLOW_IN_SANDBOX=1 per forzare)\033[0m" >&2
   return 1
 }
 
@@ -196,10 +209,13 @@ nvidia_missing_hint(){
 # Il filesystem che ospitera' davvero il disco della VM. Su un OS atomico
 # `df /` riporta l'overlay composefs (dimensione ~ meta' della RAM), che non
 # c'entra nulla con lo spazio disponibile per un qcow2.
+# POOL_DIR per primo: create-vm.sh ci mette il qcow2, quindi e' quello il
+# filesystem che conta. Ignorarlo faceva misurare lo spazio sbagliato a chi
+# tiene le immagini altrove.
 vm_disk_path(){
   local p
-  for p in /var/lib/libvirt/images /var/lib/libvirt /var; do
-    [ -d "$p" ] && { echo "$p"; return; }
+  for p in "${POOL_DIR:-}" /var/lib/libvirt/images /var/lib/libvirt /var; do
+    [ -n "$p" ] && [ -d "$p" ] && { echo "$p"; return; }
   done
   echo /
 }
