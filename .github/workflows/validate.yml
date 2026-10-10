@@ -11,7 +11,7 @@ jobs:
     name: Sintassi e lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: |
@@ -55,7 +55,7 @@ jobs:
     name: Test degli script (contratti, invarianti sicurezza)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: python -m pip install --quiet pyyaml
@@ -82,7 +82,7 @@ jobs:
     name: Build immagine (gate callback)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Il .env va creato davvero: `--env-file` cambia solo l'interpolazione
       # delle variabili, NON soddisfa la chiave `env_file:` del servizio, che
       # richiede il file su disco. Il workspace del runner e' effimero.
@@ -102,7 +102,7 @@ jobs:
     name: Nessun segreto committato
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: |
           if grep -rInE '(sk-ant-[A-Za-z0-9]{20,}|sk-or-v1-[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{40,})' \
                --exclude-dir=.git . | grep -viE 'CHANGEME|example|placeholder|<'; then
@@ -115,7 +115,7 @@ jobs:
     name: Coerenza ADR
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: |
           fail=0
           for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do

@@ -30,7 +30,7 @@ jobs:
     # main, quindi non blocca i merge.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Test degli script
         run: ./scripts/test-scripts.sh
