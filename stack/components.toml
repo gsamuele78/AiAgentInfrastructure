@@ -215,11 +215,11 @@ id = "opencode"
 layer = "agente"
 scope = "host"
 required = true
-pin = "none"
-key = "opencode"
-tracked = false
-adr = ["0005"]
-note = "installer upstream (curl | bash): candidato a mise/brew in P2 (ADR-0018)"
+pin = "stack/package.json"
+key = "opencode-ai"
+tracked = true
+adr = ["0005", "0024"]
+note = "installato da mise (npm:opencode-ai) o dal ripiego: scripts/install-user-tools.sh"
 
 [[component]]
 id = "ollama"
@@ -248,11 +248,22 @@ id = "node-runtime"
 layer = "runtime"
 scope = "host"
 required = true
-pin = "none"
-key = "node"
+pin = "stack/versions.conf"
+key = "NODE_VERSION"
 tracked = false
-adr = ["0018"]
-note = "Debian 13 ha Node 20 (EOL upstream): scelta del gestore in P2"
+adr = ["0018", "0024"]
+note = "Dependabot non legge versions.conf: aggiornamento a mano col cooldown di ADR-0020"
+
+[[component]]
+id = "mise"
+layer = "runtime"
+scope = "host"
+required = true
+pin = "stack/versions.conf"
+key = "MISE_VERSION"
+tracked = false
+adr = ["0024"]
+note = "binario della release GitHub, sha256 da SHASUMS256.txt; aggiornamento a mano"
 
 [[component]]
 id = "actions-checkout"

@@ -1,7 +1,7 @@
 {
   "name": "aiagentinfra-stack-pins",
   "private": true,
-  "description": "Pin dei tool Node usati dai client (MCP via npx, CLI skills, AgentShield). Fonte del pin per Dependabot (npm): non si installa con npm. I client ripetono la versione letterale (npx -y pkg@versione); test-scripts.sh §3 li confronta con questo file.",
+  "description": "Pin dei tool Node usati dai client (MCP via npx, CLI skills, AgentShield) e di opencode (installato da mise o dal ripiego, ADR-0024). Fonte del pin per Dependabot (npm): non si installa con npm. I client ripetono la versione letterale (npx -y pkg@versione); test-scripts.sh §3 li confronta con questo file.",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/server-filesystem": "2026.8.31",
@@ -11,6 +11,7 @@
     "ecc-agentshield": "1.6.0",
     "firecrawl-mcp": "3.27.3",
     "mcp-fetch-server": "1.1.2",
+    "opencode-ai": "1.18.34",
     "skills": "1.7.0",
     "tavily-mcp": "0.2.22"
   }

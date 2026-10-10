@@ -79,6 +79,7 @@ attenzione continua.
 ./scripts/deploy-all.sh --dry-run     # 8 fasi con checkpoint
 ./scripts/detect-hardware.sh --emit-config
 ./scripts/detect-hardware.sh --json        # fatti hw/OS per gli script che decidono (P2)
+./scripts/install-user-tools.sh --check    # Node/opencode/graphify == pin (mise, ripiego script; ADR-0024)
 ./scripts/create-vm.sh                # VM riproducibile (cloud-init)
 ./scripts/sync_openrouter.py --dry-run  # catalogo OpenRouter nel DB (OPENROUTER-SYNC.md)
 ./scripts/setup-ollama.sh --plan      # cosa regge l'hardware (nessuna modifica)

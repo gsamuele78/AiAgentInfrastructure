@@ -210,12 +210,13 @@ if bad: print("    " + "\n    ".join(bad)); sys.exit(1)
 PYX
   # Un pin che nessuno usa e' falso: Dependabot lo aggiorna e non cambia niente.
   # Ogni pacchetto di stack/package.json deve comparire in un client o in uno script.
-  python3 - <<'PYX' && ok "P1: ogni pin di stack/package.json ha un consumatore" || ko "P1: pin senza consumatore in stack/package.json" "un client o uno script deve usarlo (npx -y pkg@versione o pin_npm pkg)"
+  python3 - <<'PYX' && ok "P1: ogni pin di stack/package.json ha un consumatore" || ko "P1: pin senza consumatore in stack/package.json" "un client o uno script deve usarlo (npx -y pkg@versione, pin_npm pkg, .get(\"pkg\"))"
 import json, pathlib, sys
 npm = json.loads(pathlib.Path("stack/package.json").read_text())["dependencies"]
 users = "".join(p.read_text(errors="ignore") for p in
-                [*pathlib.Path("clients").iterdir(), pathlib.Path(".mcp.json"), *pathlib.Path("scripts").glob("*.sh")] if p.is_file())
-bad = [p for p in npm if f'"{p}@' not in users and f"pin_npm {p}" not in users]
+                [*pathlib.Path("clients").iterdir(), pathlib.Path(".mcp.json"), *pathlib.Path("scripts").rglob("*.sh")] if p.is_file())
+# forme: "pkg@x.y.z" (client), pin_npm pkg (installer), .get("pkg" (lib/user-tools.sh)
+bad = [p for p in npm if not any(f in users for f in (f'"{p}@', f"pin_npm {p}", f'.get("{p}"'))]
 if bad: print("    " + "\n    ".join(bad)); sys.exit(1)
 PYX
   # headroom sull'host ha il pin del callback (ADR-0014, components.toml):
@@ -234,6 +235,19 @@ PYX
 else
   echo -e "  \033[2m–\033[0m controlli P1 saltati (serve python >= 3.11 per tomllib)"
 fi
+
+# ADR-0024: strato S3 solo in $HOME, mai sudo; gli script npm di mise si
+# permettono per NOME (allow_builds), mai tutti; il ripiego non e' silenzioso.
+UT=scripts/lib/user-tools.sh; UI=scripts/install-user-tools.sh
+if grep -v '^[[:space:]]*#' "$UT" "$UI" | grep -qE '(^|[^_A-Za-z])sudo[[:space:]]'; then
+  ko "ADR-0024: lo strato S3 usa sudo" "S3 sta in \$HOME (ADR-0018): niente sudo"
+else ok "ADR-0024: strato S3 senza sudo"; fi
+if grep -q 'allow_builds = \["opencode-ai"\]' "$UT" && ! grep -qE 'ignore-scripts=false|dangerously-allow-all' "$UT"; then
+  ok "ADR-0024: postinstall npm permessi per nome"
+else ko "ADR-0024: postinstall npm non permessi per nome" "allow_builds = [\"opencode-ai\"], mai --ignore-scripts=false"; fi
+grep -q 'RIPIEGO' "$UI" && grep -q "journal_undo \"echo 'questo run ha usato il ripiego script'\"" "$UI" \
+  && ok "ADR-0024: il ripiego avvisa e si registra" \
+  || ko "ADR-0024: ripiego silenzioso" "auto deve avvisare e scriverlo nel journal"
 
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.

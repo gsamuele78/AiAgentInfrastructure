@@ -23,7 +23,7 @@ P1 installer skills@latest	HC-07	./scripts/test-scripts.sh	sed -i "s|npx -y 'ski
 P1 agentshield senza versione	HC-07	./scripts/test-scripts.sh	sed -i "s|npx -y 'ecc-agentshield@\$SHIELD_PIN' scan|npx ecc-agentshield scan|" scripts/stack-selective-install.sh
 P1 Dockerfile ignora requirements-callback	pin dei client	./scripts/test-scripts.sh	sed -i 's|-c /tmp/requirements-callback.txt ||; /requirements-callback.txt/d' services/Dockerfile
 P1 components pin inesistente	components.toml	./scripts/test-scripts.sh	sed -i 's|pin = "stack/package.json"|pin = "stack/pkg.json"|' stack/components.toml
-P1 components tracked senza pin	components.toml	./scripts/test-scripts.sh	python3 -c "p='stack/components.toml';s=open(p).read();s=s.replace('key = \"node\"\ntracked = false','key = \"node\"\ntracked = true');open(p,'w').write(s)" 
+P1 components tracked senza pin	components.toml	./scripts/test-scripts.sh	python3 -c "p='stack/components.toml';s=open(p).read();s=s.replace('key = \"mattpocock/skills\"\ntracked = false','key = \"mattpocock/skills\"\ntracked = true');open(p,'w').write(s)" 
 OLLAMA guard dopo il ramo --remove	sandbox_guard precede	./scripts/test-scripts.sh	python3 -c "p='scripts/setup-ollama.sh';s=open(p).read();g='sandbox_guard \"scripts/setup-ollama.sh\" \"\$DRY\" || exit 1\n';s=s.replace(g,'',1);s=s.replace('# ================================================================ install\n','# ================================================================ install\n'+g,1);open(p,'w').write(s)" 
 OLLAMA bind 0.0.0.0 non piu' fatale	errore specifico dell'invariante	tests/setup-ollama/run.sh	sed -i 's/listening "$any" \&\& hard_fail/listening "$any" \&\& true/' scripts/setup-ollama.sh
 OLLAMA rollback automatico spento	niente resta installato	tests/setup-ollama/run.sh	sed -i 's/    journal_rollback "$JRUN" || echo/    true || echo/' scripts/setup-ollama.sh
@@ -44,3 +44,6 @@ TC-13 json booleano come stringa	✗	tests/platform/run.sh	sed -i 's/BOOL = {"at
 P1 fetch torna alla build locale	pin senza consumatore	./scripts/test-scripts.sh	sed -i 's|"npx","-y","mcp-fetch-server@1.1.2"|"node","{env:HOME}/.local/share/mcp/fetch-mcp/dist/index.js"|' clients/opencode.jsonc
 P1 bump fetch solo in package.json	pin dei client	./scripts/test-scripts.sh	sed -i 's|"mcp-fetch-server": "1.1.2"|"mcp-fetch-server": "1.2.0"|' stack/package.json
 P1 audit ignora la deriva di headroom	deriva di headroom	./scripts/test-scripts.sh	sed -i 's/    else: L("WARN",f"headroom sull/    else: L("PASS",f"headroom sull/' scripts/audit-integration.py
+ADR-0024 sudo nello strato S3	ADR-0024	./scripts/test-scripts.sh	sed -i 's|  install -m 755 "$UT_CACHE/$f" "$dest"|  sudo install -m 755 "$UT_CACHE/$f" "$dest"|' scripts/lib/user-tools.sh
+ADR-0024 postinstall permessi a tutti	ADR-0024	./scripts/test-scripts.sh	sed -i 's|allow_builds = \["opencode-ai"\]|npm_args = "--ignore-scripts=false"|' scripts/lib/user-tools.sh
+ADR-0024 ripiego silenzioso	ADR-0024	./scripts/test-scripts.sh	sed -i '/RIPIEGO sullo script/d' scripts/install-user-tools.sh

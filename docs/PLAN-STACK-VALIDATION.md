@@ -140,8 +140,13 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
     `versions.conf`; l'unico modo sarebbe un Dockerfile "sentinella"
     (`FROM ollama/ollama:X`) che nessuno costruisce, letto da `setup-ollama.sh`.
     Funzionerebbe, ma è un file che mente su cosa sia: non si fa.
-  - Restano: opencode e Node (P2b, l'altro filone di P2), mattpocock (P4).
-    Con P2b si arriva a 23/25 (92%): obiettivo raggiunto senza Ollama.
+  - Con P2b unito (ADR-0024): **22/26 (84%)**, obiettivo ≥ 90% **non raggiunto**.
+    P2b ha portato opencode sotto Dependabot (`opencode-ai` in `stack/package.json`)
+    ma ha aggiunto un componente, mise, e Node resta in `versions.conf`: entrambi
+    si aggiornano a mano. Non tracciati: mattpocock (P4), Ollama, Node, mise,
+    tutti con il motivo in `components.toml`. Il 90% (24/26) richiederebbe due
+    di questi sotto un bot: realistico solo mattpocock con P4; per gli altri tre
+    Dependabot non ha un ecosistema che li legga.
 
 ### P2 — Fatti hw/OS e primitive di piattaforma *(ADR-0018)*
 - **Anticipato per il solo LLM locale** (ADR-0023): `scripts/lib/llm-plan.sh`
@@ -161,8 +166,13 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
 - **Stato (P2a)**: fatti (`detect-hardware.sh --json`), `scripts/lib/platform.sh`
   (`platform_decide`, `pkg_present`, `pkg_add`, `svc_render`, `tool_pin`),
   fixture + TC-13, job CI `os-matrix` su `debian:13` e `fedora:44`.
-  **Resta per P2b**: scelta mise vs brew col protocollo ADR-0021 (serve
-  misurare installazioni reali) e i pin di Node e opencode in `stack/`.
+  **Stato (P2b)**: misura fatta (`bench/install-methods/`, workflow
+  `bench-install`): baseline, mise, brew, nix, distrobox contro soglie
+  pre-registrate. Esito in [ADR-0024](adr/0024-mise-per-gli-strumenti-utente-misurato.md):
+  **mise** (pin esatti, rollback 0,02 s su Debian 13/Fedora/Ubuntu); brew e nix
+  esclusi per i pin, distrobox per il tempo di rollback (72 s) e la `$HOME`
+  condivisa. ADR-0024 accettato (mise primario, script di ripiego); adozione in
+  `scripts/install-user-tools.sh` con i pin di Node e opencode in `stack/`.
 
 ### P3 — `stack.py`: plan / install / validate / rollback *(ADR-0017, 0018)*
 - **Deliverable**: `scripts/stack.py` (stdlib), journal in
@@ -288,6 +298,7 @@ cosa, il test deve diventare rosso), come già fatto per la catena `auto`.
 | 2026-10-10 | P1 | controlli sui pin con test di mutazione | 0 | 3 controlli, 15 mutazioni rosse | 15 | ✔ |
 | 2026-10-10 | P1 (completamento) | componenti con pin letto da Dependabot (stessi 25) | 19/25 (76%) | 21/25 (84%) | statico | ✘ ≥ 90% non ancora: opencode e Node in P2b, mattpocock in P4, Ollama non tracciabile senza un file finto |
 | 2026-10-10 | P1 (completamento) | controlli nuovi con mutazione (pin senza consumatore, deriva headroom sull'host) | 0 | 2 controlli, 3 mutazioni rosse | 3 | ✔ |
+| 2026-10-10 | P1 dopo P2b | componenti con pin letto da Dependabot (26: +mise) | 21/25 (84%) | 22/26 (84%) | statico | ✘ ≥ 90% non raggiunto: Node, mise, Ollama in `versions.conf` (nessun ecosistema Dependabot), mattpocock in P4 |
 | 2026-10-10 | P2/P3 (solo LLM locale, ADR-0023) | decisioni hw corrette su profili (laptop PRD, 4+12, 4+8, 8, 24, L40S, CPU 16/8, GPU 2 GB, disco 3/6) | 2 tabelle divergenti; con ≥ 20 GB `auto` senza modello | 11/11 attese, 1 tabella | statico | ✔ |
 | 2026-10-10 | P3 (solo LLM locale) | cambiamenti al 2° run identico (TC-10) | non misurato (nessun registro) | 0 (registro vuoto, rimosso) | sistema finto | ✔ (da confermare sull'host) |
 | 2026-10-10 | P3 (solo LLM locale) | rollback riporta lo stato pre-run (TC-11) | non disponibile | binario, unit, override, firewall, modelli: tutti ripristinati; preesistenti intatti | sistema finto | ✔ (da confermare sull'host) |
