@@ -55,7 +55,7 @@ services:
       options: { max-size: "20m", max-file: "3" }
 
   nginx:
-    image: nginx:1.30.5-alpine        # ramo stable (pari); 1.27 era mainline
+    image: nginx:1.31.0-alpine        # ramo stable (pari); 1.27 era mainline
     container_name: biome-nginx
     restart: unless-stopped
     # NIENTE "ports:" qui: la porta 8443 è pubblicata dal servizio vllm, di cui
