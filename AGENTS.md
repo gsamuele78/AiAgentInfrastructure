@@ -32,6 +32,8 @@ Ollama :11434 (virbr0) ─┘                    └─────────�
 2. `docs/adr/README.md` — le decisioni già prese e il loro perché (0017–0021
    sono *Proposed*: il piano è `docs/PLAN-STACK-VALIDATION.md`).
 3. `docs/TEST-PLAN.md` — cosa deve continuare a passare.
+4. `docs/ALIGNMENT-INFRA-IAM-PKI.md` + ADR-0022 — cosa condividiamo con
+   Infra-Iam-PKI e perché alcune cose qui sono diverse **apposta**.
 
 ## Invarianti che NON vanno violate
 
@@ -73,7 +75,7 @@ attenzione continua.
 ./scripts/test-all.sh            # L5: catena reale (serve il gateway attivo)
 ./scripts/test-all.sh cache      # TC-09: catena auto + prompt caching
 
-# deploy
+# deploy — il primo deploy reale segue docs/DEPLOY-RUNBOOK.md (snapshot, criteri, scheda)
 ./scripts/deploy-all.sh --dry-run     # 8 fasi con checkpoint
 ./scripts/detect-hardware.sh --emit-config
 ./scripts/create-vm.sh                # VM riproducibile (cloud-init)
@@ -134,6 +136,9 @@ attenzione continua.
 | "questo plugin migliora le prestazioni" | si adotta senza baseline | ADR-0021: pre-registra la soglia, misura A/B, poi decidi |
 | "usiamo l'abbonamento anche da opencode" (CCR, import OAuth) | funziona finché l'account non viene sospeso | fuori termini: opencode usa le API key del gateway (ADR-0016) |
 | test comportamentale su un percorso che chiede conferma | verde per il motivo sbagliato (si ferma alla conferma, non al guard) | asserzione strutturale, o passa la conferma vera |
+| `.serena/project.yml` scritto a mano senza `language_servers` | Serena 1.7.0 non carica il progetto (`KeyError`), nessun errore all'installazione | lo genera `serena project create`; si tocca solo `excluded_tools` (`test-scripts.sh` §4) |
+| Serena con `--context agent` in opencode (come in Infra-Iam-PKI) | 5 tool duplicati in context, e una shell che **scavalca le `permission`** di opencode | `ide` per opencode (ADR-0022) |
+| `./backup-db.sh` lanciato nella VM | `No such file`: lo script sta in `scripts/`, nella VM si copia solo `services/` | copialo esplicitamente (`DEPLOY-RUNBOOK.md` passo 3) |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 
