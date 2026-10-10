@@ -15,6 +15,11 @@
 : "${SYSFS_ROOT:=/sys}"
 : "${OS_RELEASE_FILE:=/etc/os-release}"
 : "${OSTREE_MARKER:=/run/ostree-booted}"
+: "${PROC_ROOT:=/proc}"
+# Prefisso per i marcatori di sandbox (/.flatpak-info, /.dockerenv, ...): vuoto
+# in esercizio. Serve alle fixture di tests/platform, che girano anche DENTRO
+# un container di CI e devono poter dire "qui non c'e' sandbox".
+: "${SANDBOX_ROOT:=}"
 
 # --- OS ---------------------------------------------------------------
 # Famiglie: ostree (Fedora atomico: Silverblue/Kinoite/Bazzite/Bluefin),
@@ -82,11 +87,11 @@ pkg_install_cmd(){
 # molte app (terminali compresi) sono Flatpak.
 # Stampa il tipo di sandbox, oppure niente se siamo sull'host.
 sandbox_kind(){
-  [ -f /.flatpak-info ] && { echo flatpak; return; }
+  [ -f "$SANDBOX_ROOT/.flatpak-info" ] && { echo flatpak; return; }
   [ -n "${FLATPAK_ID:-}" ] && { echo flatpak; return; }
-  [ -f /.dockerenv ] && { echo docker; return; }
-  if [ -f /run/.containerenv ]; then
-    grep -q 'name="toolbox"\|toolbox' /run/.containerenv 2>/dev/null && { echo toolbox; return; }
+  [ -f "$SANDBOX_ROOT/.dockerenv" ] && { echo docker; return; }
+  if [ -f "$SANDBOX_ROOT/run/.containerenv" ]; then
+    grep -q 'name="toolbox"\|toolbox' "$SANDBOX_ROOT/run/.containerenv" 2>/dev/null && { echo toolbox; return; }
     echo container; return
   fi
   [ -n "${container:-}" ] && { echo "${container}"; return; }
@@ -219,3 +224,28 @@ vm_disk_path(){
   done
   echo /
 }
+
+# --- Fatti numerici (P2, ADR-0018) --------------------------------------
+# Una funzione per fatto, cosi' detect-hardware.sh (testo e --json) e gli
+# script che decidono leggono lo STESSO valore. HW_* li forza (test, o una
+# misura fatta altrove), come in setup-ollama.sh.
+# nproc rispetta i limiti del cgroup; il conteggio da cpuinfo serve alle fixture.
+hw_cores(){ [ "$PROC_ROOT" = /proc ] && command -v nproc >/dev/null 2>&1 && { nproc; return; }
+  grep -c '^processor' "$PROC_ROOT/cpuinfo" 2>/dev/null || echo 0; }
+hw_cpu_model(){ awk -F: '/model name/{sub(/^ */,"",$2); print $2; exit}' "$PROC_ROOT/cpuinfo" 2>/dev/null; }
+hw_ram_gb(){ [ -n "${HW_RAM_GB:-}" ] && { echo "$HW_RAM_GB"; return; }
+  awk '/MemTotal/{printf "%d", $2/1024/1024}' "$PROC_ROOT/meminfo" 2>/dev/null || echo 0; }
+hw_kvm(){ grep -qE 'vmx|svm' "$PROC_ROOT/cpuinfo" 2>/dev/null; }
+# laptop se c'e' una batteria (vale anche dove hostnamectl manca, es. container)
+hw_chassis(){
+  local b
+  for b in "$SYSFS_ROOT"/class/power_supply/BAT*; do [ -e "$b" ] && { echo laptop; return; }; done
+  hostnamectl chassis 2>/dev/null || echo unknown
+}
+# VRAM in MB della prima GPU NVIDIA, vuoto se non misurabile (nvidia-smi assente
+# o muto). Vuoto non vuol dire "niente GPU": quello lo dice nvidia_pci_devices.
+hw_vram_mb(){ [ -n "${HW_VRAM_MB:-}" ] && { echo "$HW_VRAM_MB"; return; }
+  command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1 || return 0
+  nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -dc '0-9'; }
+hw_disk_free_gb(){ [ -n "${HW_DISK_GB:-}" ] && { echo "$HW_DISK_GB"; return; }
+  df -BG --output=avail "$(vm_disk_path)" 2>/dev/null | tail -1 | tr -dc '0-9'; }

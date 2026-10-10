@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Rileva l'hardware e RACCOMANDA sizing VM, modello locale, tuning Ollama.
 # Solo lettura.  --emit-config stampa i frammenti pronti da incollare.
+#                --json stampa i FATTI (non le raccomandazioni) per gli script
+#                che decidono (P2, ADR-0018). Schema: "schema": 1.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/hw-detect.sh
@@ -8,19 +10,59 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/llm-plan.sh
 . "$HERE/lib/llm-plan.sh"
 EMIT=0; [ "${1:-}" = "--emit-config" ] && EMIT=1
+
+# --json: fatti, niente testo. JSON generato con la stdlib di Python (HC-12
+# adattata, ADR-0022): niente jq, niente JSON concatenato a mano.
+if [ "${1:-}" = "--json" ]; then
+  GPU_ROWS=""
+  for a in $(nvidia_pci_devices); do
+    GPU_ROWS="$GPU_ROWS$a"$'\t'"$(nvidia_pci_name "$a")"$'\t'"$(nvidia_pci_driver "$a")"$'\n'
+  done
+  VRAM=$(hw_vram_mb); DISKP=$(vm_disk_path)
+  IFS='|' read -r LV LM _ _ <<<"$(llm_plan "${VRAM:-0}" "$(hw_ram_gb)" "$(hw_disk_free_gb)")"
+  BR=$(ip -4 -o addr show virbr0 2>/dev/null | awk '{print $4}' | cut -d/ -f1)
+  # Una riga per fatto, chiave=valore; i booleani come 0/1. Python li tipizza.
+  {
+    echo "os_id=$(os_field ID)"; echo "os_version_id=$(os_field VERSION_ID)"
+    echo "os_variant_id=$(os_field VARIANT_ID)"; echo "os_pretty=$(os_pretty)"
+    echo "os_family=$(os_family)"
+    echo "atomic=$(os_is_atomic && echo 1 || echo 0)"; echo "ublue=$(os_is_ublue && echo 1 || echo 0)"
+    echo "sandbox=$(sandbox_kind)"
+    echo "cpu_model=$(hw_cpu_model)"; echo "cpu_cores=$(hw_cores)"; echo "ram_gb=$(hw_ram_gb)"
+    echo "chassis=$(hw_chassis)"; echo "kvm=$(hw_kvm && echo 1 || echo 0)"
+    echo "vram_mb=$VRAM"; echo "nvidia_module=$(nvidia_kernel_module_loaded && echo 1 || echo 0)"
+    echo "disk_path=$DISKP"; echo "disk_free_gb=$(hw_disk_free_gb)"
+    echo "virbr0_ip=$BR"
+    echo "libvirt=$(command -v virsh >/dev/null 2>&1 && echo 1 || echo 0)"
+    echo "docker=$(command -v docker >/dev/null 2>&1 && echo 1 || echo 0)"
+    echo "llm_verdict=$LV"; echo "llm_models=$LM"
+  } | GPU_ROWS="$GPU_ROWS" python3 -c '
+import json, os, sys
+BOOL = {"atomic", "ublue", "kvm", "nvidia_module", "libvirt", "docker"}
+INT = {"cpu_cores", "ram_gb", "vram_mb", "disk_free_gb"}
+f = {"schema": 1}
+for line in sys.stdin.read().splitlines():
+    k, _, v = line.partition("=")
+    if k in BOOL: f[k] = v == "1"
+    elif k in INT: f[k] = int(v) if v.isdigit() else None
+    elif k == "llm_models": f[k] = v.split()
+    else: f[k] = v or None
+f["gpus"] = [dict(zip(("pci", "name", "driver"), (r.split("	") + ["", "", ""])[:3]))
+             for r in os.environ.get("GPU_ROWS", "").splitlines() if r]
+for g in f["gpus"]: g["driver"] = g["driver"] or None
+print(json.dumps(f, indent=2, ensure_ascii=False))'
+  exit $?
+fi
 sec(){ echo -e "\n\033[36m━━ $* ━━\033[0m"; }
 kv(){ printf "  %-22s %s\n" "$1" "$2"; }
 rec(){ echo -e "  \033[32m→\033[0m $*"; }
 warn(){ echo -e "  \033[33m!\033[0m $*"; }
 
 sec "CPU e memoria"
-CORES=$(nproc 2>/dev/null || echo 0)
-MODEL=$(awk -F: '/model name/{print $2; exit}' /proc/cpuinfo 2>/dev/null | sed 's/^ *//')
-RAM_GB=$(awk '/MemTotal/{printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0)
+CORES=$(hw_cores); MODEL=$(hw_cpu_model); RAM_GB=$(hw_ram_gb)
 RAM_AV=$(awk '/MemAvailable/{printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0)
 SWAP=$(awk '/SwapTotal/{printf "%d", $2/1024/1024}' /proc/meminfo 2>/dev/null || echo 0)
-CHASSIS=$(hostnamectl chassis 2>/dev/null || echo unknown)
-[ -d /sys/class/power_supply/BAT0 ] && CHASSIS=laptop
+CHASSIS=$(hw_chassis)
 kv "CPU" "${MODEL:-n/d} (${CORES} core)"; kv "RAM" "${RAM_GB} GB (liberi ${RAM_AV} GB)"
 kv "Swap" "${SWAP} GB"; kv "Macchina" "$CHASSIS"
 kv "Sistema" "$(os_pretty)$(os_is_atomic && echo '  [atomico: /usr in sola lettura]')"
@@ -87,7 +129,7 @@ fi
 # (scripts/lib/llm-plan.sh): i modelli sono quelli del gateway, l'hardware
 # decide quali entrano.
 sec "LLM locale: cosa regge questa macchina"
-DISK_LLM=$(df -BG --output=avail "$(vm_disk_path)" 2>/dev/null | tail -1 | tr -dc '0-9')
+DISK_LLM=$(hw_disk_free_gb)
 IFS='|' read -r LLM_VERDICT LLM_MODELS NGPU_LAYERS LLM_NOTE <<<"$(llm_plan "${VRAM_SEEN:-0}" "$RAM_GB" "${DISK_LLM:-0}")"
 kv "Verdetto" "$LLM_VERDICT"
 kv "Modelli" "${LLM_MODELS:-nessuno}"
@@ -98,7 +140,7 @@ OLL=$(echo "$LLM_MODELS" | awk '{print $NF}')
 [ -n "$OLL" ] && rec "per installare, verificare e poter annullare: ./scripts/setup-ollama.sh (--plan per rivedere)"
 
 sec "Virtualizzazione e rete"
-grep -qE 'vmx|svm' /proc/cpuinfo 2>/dev/null && kv KVM supportato || warn "virtualizzazione HW non attiva (BIOS?)"
+hw_kvm && kv KVM supportato || warn "virtualizzazione HW non attiva (BIOS?)"
 if command -v virsh >/dev/null 2>&1; then kv libvirt presente
 elif [ -n "$SANDBOX" ]; then warn "virsh non visibile nel sandbox (sull'host puo' esserci)"
 else warn "libvirt assente"; rec "$(pkg_hint libvirt)"; fi

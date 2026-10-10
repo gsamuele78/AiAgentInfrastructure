@@ -78,12 +78,14 @@ attenzione continua.
 # deploy — il primo deploy reale segue docs/DEPLOY-RUNBOOK.md (snapshot, criteri, scheda)
 ./scripts/deploy-all.sh --dry-run     # 8 fasi con checkpoint
 ./scripts/detect-hardware.sh --emit-config
+./scripts/detect-hardware.sh --json        # fatti hw/OS per gli script che decidono (P2)
 ./scripts/create-vm.sh                # VM riproducibile (cloud-init)
 ./scripts/sync_openrouter.py --dry-run  # catalogo OpenRouter nel DB (OPENROUTER-SYNC.md)
 ./scripts/setup-ollama.sh --plan      # cosa regge l'hardware (nessuna modifica)
 ./scripts/setup-ollama.sh             # LLM locale: installa, verifica ogni passo, annulla da solo se fallisce
 ./scripts/setup-ollama.sh --rollback  # annulla l'ultimo run (--list) · --remove disinstalla tutto
 tests/setup-ollama/run.sh             # 48 scenari su sistema finto (anche dentro test-scripts.sh)
+tests/platform/run.sh                 # TC-13: fatti hw/OS → scelte per strato, su fixture
 tests/mutation/run.sh                 # ogni controllo sa fallire (catalogo: tests/mutation/catalog.tsv)
 tests/serena/check-project-yml.sh     # Serena alla versione del pin carica .serena/project.yml (serve rete)
 ./scripts/restore-test.sh             # TC-05: il backup è restorabile?

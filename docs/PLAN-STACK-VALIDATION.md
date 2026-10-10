@@ -142,6 +142,11 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
   testabile in CI); le decisioni S1 producono solo raccomandazioni.
 - **Misura**: decisioni corrette sulle fixture — obiettivo 100%; tempo di
   `facts` < 2 s (`hyperfine`, mediana di 10).
+- **Stato (P2a)**: fatti (`detect-hardware.sh --json`), `scripts/lib/platform.sh`
+  (`platform_decide`, `pkg_present`, `pkg_add`, `svc_render`, `tool_pin`),
+  fixture + TC-13, job CI `os-matrix` su `debian:13` e `fedora:44`.
+  **Resta per P2b**: scelta mise vs brew col protocollo ADR-0021 (serve
+  misurare installazioni reali) e i pin di Node e opencode in `stack/`.
 
 ### P3 — `stack.py`: plan / install / validate / rollback *(ADR-0017, 0018)*
 - **Deliverable**: `scripts/stack.py` (stdlib), journal in

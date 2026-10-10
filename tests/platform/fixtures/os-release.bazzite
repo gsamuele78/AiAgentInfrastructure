@@ -1,0 +1,11 @@
+# Approssimazione dell'os-release di Bazzite (desktop KDE, senza -nvidia).
+# Sostituirla con il file vero dell'host quando c'e' (PLAN-STACK-VALIDATION §0).
+# Le decisioni NON dipendono da questi nomi ma da ostree, ujust e dal driver
+# sul bus PCI: un nome sbagliato qui non cambia l'esito di TC-13.
+NAME="Bazzite"
+VERSION="42.20250901.0 (Kinoite)"
+ID=bazzite
+ID_LIKE="fedora"
+VERSION_ID=42
+VARIANT_ID=bazzite
+PRETTY_NAME="Bazzite 42 (FROM Fedora Kinoite)"

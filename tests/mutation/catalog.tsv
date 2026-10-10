@@ -36,3 +36,8 @@ OLLAMA uninstall lascia il binario	binario rimosso	tests/setup-ollama/run.sh	sed
 OLLAMA rollback ignora i file	override del run rimosso	tests/setup-ollama/run.sh	sed -i 's/^      file)$/      fileX)/' scripts/lib/journal.sh
 deploy fase 7 neutralizzata	verifica neutralizzata	./scripts/test-scripts.sh	sed -i 's|^verify devops-audit.sh; verify audit-integration.py; verify test-all.sh$|run "./test-all.sh \|\| true"|' scripts/deploy-all.sh
 deploy fase 1 torna stampata	passi della VM stampati	./scripts/test-scripts.sh	sed -i 's|^VFAIL=""$|echo "  ssh $VM_USER@<VM_IP>"; VFAIL=""|' scripts/deploy-all.sh
+TC-13 S1 automatico su OS atomico	✗	tests/platform/run.sh	sed -i 's/echo "recommend|rpm-ostree install $arg/echo "apply|rpm-ostree install $arg/' scripts/lib/platform.sh
+TC-13 pkg_add senza journal	✗	tests/platform/run.sh	sed -i '/senza journal_begin: non annullabile/d' scripts/lib/platform.sh
+TC-13 svc_render riscrive sempre	✗	tests/platform/run.sh	sed -i 's/\[ "$new" = "$old" \] \&\& { echo "  $dst: invariato"/false \&\& { echo "  $dst: invariato"/' scripts/lib/platform.sh
+TC-13 driver deciso da un sandbox	✗	tests/platform/run.sh	sed -i '/sandbox $sb: lo stato del driver si vede solo/d' scripts/lib/platform.sh
+TC-13 json booleano come stringa	✗	tests/platform/run.sh	sed -i 's/BOOL = {"atomic", "ublue",/BOOL = {"atomic",/' scripts/detect-hardware.sh
