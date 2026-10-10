@@ -1,0 +1,5 @@
+# shellcheck shell=bash
+# Stato del sistema finto: $OLLAMA_ROOT/.fake (servizio, porta, modelli, firewall).
+F="${OLLAMA_ROOT:?}/.fake"; mkdir -p "$F"
+active(){ [ -f "$F/active" ]; }
+listen(){ cat "$F/listen" 2>/dev/null; }

@@ -226,11 +226,11 @@ id = "ollama"
 layer = "gateway"
 scope = "host"
 required = false
-pin = "none"
-key = "ollama"
+pin = "stack/versions.conf"
+key = "OLLAMA_VERSION"
 tracked = false
-adr = ["0008"]
-note = "installer upstream in setup-ollama.sh: versione da registrare in P2"
+adr = ["0008", "0018"]
+note = "installer upstream con OLLAMA_VERSION pinnato; Dependabot non lo legge: aggiornamento manuale"
 
 [[component]]
 id = "headroom-host"

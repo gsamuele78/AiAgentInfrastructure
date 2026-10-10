@@ -1,0 +1,36 @@
+# nome	pattern atteso nell'output rosso	test da lanciare	comando che rompe la cosa (cwd = copia del repo)
+HC-03 tolto set -uo pipefail	HC-03	./scripts/test-scripts.sh	sed -i 's/^set -uo pipefail$/set -u/' scripts/backup-db.sh
+HC-08 .env tracciato	HC-08	./scripts/test-scripts.sh	echo X=1 > services/.env && git add -f services/.env
+HC-09 docker.sock montato	HC-09	./scripts/test-scripts.sh	sed -i 's|- ./certs:/certs:ro|- ./certs:/certs:ro\n      - /var/run/docker.sock:/var/run/docker.sock|' services/docker-compose.yml
+HC-01 limiti tolti a db	HC-01	./scripts/test-scripts.sh	sed -i 's/limits: { cpus: "1.0", memory: 1G }/limits: { cpus: "1.0" }/' services/docker-compose.yml
+GPU deploy-all torna a nvidia-smi	deploy-all.sh decide sulla GPU	./scripts/test-scripts.sh	sed -i 's|^run "./setup-ollama.sh --plan"$|command -v nvidia-smi >/dev/null 2>\&1 \&\& run "./setup-ollama.sh"|' scripts/deploy-all.sh
+Serena onboarding tolto dall'installer	installer:.*onboarding	./scripts/test-scripts.sh	sed -i 's/ edit_memory onboarding"/ edit_memory"/' scripts/stack-selective-install.sh
+Serena installer con heredoc	scrive project.yml a mano	./scripts/test-scripts.sh	sed -i 's|^elif \[ "$DRY" = 1 \]; then|elif false; then cat > "$SPY" <<YML\nx\nYML\nelif [ "$DRY" = 1 ]; then|' scripts/stack-selective-install.sh
+Serena language_servers tolti	serena/project.yml	./scripts/test-scripts.sh	python3 -c "p='.serena/project.yml';s=open(p).read();s=s.replace('language_servers:\n- bash\n- python\n- yaml\n- markdown\n','');open(p,'w').write(s)" 
+Serena rename_memory tolto	serena/project.yml	./scripts/test-scripts.sh	sed -i '/^- rename_memory$/d' .serena/project.yml
+Claude deny .env rimosso	claude/settings.json	./scripts/test-scripts.sh	sed -i '/"Read(\*\*\/.env)",/d' .claude/settings.json
+P1 Serena opencode senza pin	P1	./scripts/test-scripts.sh	sed -i 's|"uvx","--from","serena-agent==1.7.0","serena"|"serena"|' clients/opencode.jsonc
+P1 .mcp.json a 1.6.0	pin dei client	./scripts/test-scripts.sh	sed -i 's/serena-agent==1.7.0/serena-agent==1.6.0/' .mcp.json
+P1 bump Dependabot solo in stack/	pin dei client	./scripts/test-scripts.sh	sed -i 's/^serena-agent==1.7.0/serena-agent==1.8.0/' stack/requirements-tools.txt
+P1 npx senza versione	HC-07	./scripts/test-scripts.sh	sed -i 's|"firecrawl-mcp@3.27.3"|"firecrawl-mcp"|' clients/opencode.jsonc
+P1 bump firecrawl solo in package.json	pin dei client	./scripts/test-scripts.sh	sed -i 's|"firecrawl-mcp": "3.27.3"|"firecrawl-mcp": "3.28.0"|' stack/package.json
+P1 Codex su git HEAD	HC-07	./scripts/test-scripts.sh	sed -i 's|"serena-agent==1.7.0"|"git+https://github.com/oraios/serena"|' clients/codex-config.toml
+P1 FROM senza digest	HC-07	./scripts/test-scripts.sh	sed -i 's|^FROM ghcr.io/berriai/litellm-database:v1.104.2@sha256:[0-9a-f]*|FROM ghcr.io/berriai/litellm-database:v1.104.2|' services/Dockerfile
+P1 FROM con ARG	HC-07	./scripts/test-scripts.sh	sed -i 's|^FROM ghcr.io/berriai/litellm-database:.*|FROM ghcr.io/berriai/litellm-database:${LITELLM_IMAGE_TAG}|' services/Dockerfile
+P1 postgres tag mobile	HC-07	./scripts/test-scripts.sh	sed -i 's/postgres:16.15-alpine/postgres:16-alpine/' services/docker-compose.yml
+P1 vLLM da variabile	HC-07	./scripts/test-scripts.sh	sed -i 's|image: vllm/vllm-openai:v0.30.0|image: "vllm/vllm-openai:${VLLM_TAG:-latest}"|' services-biome/docker-compose.yml
+P1 installer skills@latest	HC-07	./scripts/test-scripts.sh	sed -i "s|npx -y 'skills@\$SKILLS_PIN'|npx skills@latest|" scripts/stack-selective-install.sh
+P1 agentshield senza versione	HC-07	./scripts/test-scripts.sh	sed -i "s|npx -y 'ecc-agentshield@\$SHIELD_PIN' scan|npx ecc-agentshield scan|" scripts/stack-selective-install.sh
+P1 Dockerfile ignora requirements-callback	pin dei client	./scripts/test-scripts.sh	sed -i 's|-c /tmp/requirements-callback.txt ||; /requirements-callback.txt/d' services/Dockerfile
+P1 components pin inesistente	components.toml	./scripts/test-scripts.sh	sed -i 's|pin = "stack/package.json"|pin = "stack/pkg.json"|' stack/components.toml
+P1 components tracked senza pin	components.toml	./scripts/test-scripts.sh	python3 -c "p='stack/components.toml';s=open(p).read();s=s.replace('key = \"node\"\ntracked = false','key = \"node\"\ntracked = true');open(p,'w').write(s)" 
+OLLAMA guard dopo il ramo --remove	sandbox_guard precede	./scripts/test-scripts.sh	python3 -c "p='scripts/setup-ollama.sh';s=open(p).read();g='sandbox_guard \"scripts/setup-ollama.sh\" \"\$DRY\" || exit 1\n';s=s.replace(g,'',1);s=s.replace('# ================================================================ install\n','# ================================================================ install\n'+g,1);open(p,'w').write(s)" 
+OLLAMA bind 0.0.0.0 non piu' fatale	errore specifico dell'invariante	tests/setup-ollama/run.sh	sed -i 's/listening "$any" \&\& hard_fail/listening "$any" \&\& true/' scripts/setup-ollama.sh
+OLLAMA rollback automatico spento	niente resta installato	tests/setup-ollama/run.sh	sed -i 's/    journal_rollback "$JRUN" || echo/    true || echo/' scripts/setup-ollama.sh
+OLLAMA CLI senza OLLAMA_HOST	modelli scaricati	tests/setup-ollama/run.sh	sed -i 's/^ol(){ OLLAMA_HOST="$BRIP:11434" ollama "$@"; }/ol(){ ollama "$@"; }/' scripts/setup-ollama.sh
+OLLAMA risposta vuota accettata	esce 1, rollback	tests/setup-ollama/run.sh	sed -i 's/\[ -n "$RESP" \] \&\& \[ "$RESP" != "-" \] || hard_fail/[ -n "$RESP" ] || hard_fail/' scripts/setup-ollama.sh
+OLLAMA override riscritto a ogni run	nessun nuovo registro	tests/setup-ollama/run.sh	sed -i 's/^if \[ -f "$OVR" \] \&\& \[ "$(printf/if false \&\& [ "$(printf/' scripts/setup-ollama.sh
+OLLAMA registro vuoto non tolto	nessun nuovo registro	tests/setup-ollama/run.sh	sed -i 's/^  rm -rf "$JRUN"$/  :/' scripts/setup-ollama.sh
+OLLAMA CPU scarica anche il 7b	solo il 3b	tests/setup-ollama/run.sh	sed -i 's/echo "cpu|$small||/echo "cpu|$small $main||/' scripts/lib/llm-plan.sh
+OLLAMA uninstall lascia il binario	binario rimosso	tests/setup-ollama/run.sh	sed -i 's/^  $SUDO rm -f "$bin"; /  /' scripts/setup-ollama.sh
+OLLAMA rollback ignora i file	override del run rimosso	tests/setup-ollama/run.sh	sed -i 's/^      file)$/      fileX)/' scripts/lib/journal.sh

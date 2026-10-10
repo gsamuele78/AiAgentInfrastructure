@@ -80,7 +80,12 @@ attenzione continua.
 ./scripts/detect-hardware.sh --emit-config
 ./scripts/create-vm.sh                # VM riproducibile (cloud-init)
 ./scripts/sync_openrouter.py --dry-run  # catalogo OpenRouter nel DB (OPENROUTER-SYNC.md)
-./scripts/setup-ollama.sh             # LLM locale configurato e verificato
+./scripts/setup-ollama.sh --plan      # cosa regge l'hardware (nessuna modifica)
+./scripts/setup-ollama.sh             # LLM locale: installa, verifica ogni passo, annulla da solo se fallisce
+./scripts/setup-ollama.sh --rollback  # annulla l'ultimo run (--list) · --remove disinstalla tutto
+tests/setup-ollama/run.sh             # 48 scenari su sistema finto (anche dentro test-scripts.sh)
+tests/mutation/run.sh                 # ogni controllo sa fallire (catalogo: tests/mutation/catalog.tsv)
+tests/serena/check-project-yml.sh     # Serena alla versione del pin carica .serena/project.yml (serve rete)
 ./scripts/restore-test.sh             # TC-05: il backup è restorabile?
 ```
 
@@ -138,6 +143,9 @@ attenzione continua.
 | test comportamentale su un percorso che chiede conferma | verde per il motivo sbagliato (si ferma alla conferma, non al guard) | asserzione strutturale, o passa la conferma vera |
 | `.serena/project.yml` scritto a mano senza `language_servers` | Serena 1.7.0 non carica il progetto (`KeyError`), nessun errore all'installazione | lo genera `serena project create`; si tocca solo `excluded_tools` (`test-scripts.sh` §4) |
 | Serena con `--context agent` in opencode (come in Infra-Iam-PKI) | 5 tool duplicati in context, e una shell che **scavalca le `permission`** di opencode | `ide` per opencode (ADR-0022) |
+| `ollama pull` dopo aver spostato il bind su virbr0 | `could not connect`: il CLI parla a 127.0.0.1 per default | `OLLAMA_HOST=<virbr0>:11434 ollama ...` (`ol()` in `setup-ollama.sh`) |
+| Modello locale scelto solo dalla VRAM (es. 14b con 24 GB) | `auto` punta al 7b che non c'e': ogni richiesta salta al cloud in silenzio | i modelli sono quelli delle lane del gateway; l'hw sceglie quali entrano (ADR-0023) |
+| campo vuoto letto con `read -r A B` | i valori slittano: un modello muto risultava "risponde" | segnaposto esplicito (`-`) per il vuoto; scenario 6 di `tests/setup-ollama` |
 | PR di Dependabot su `stack/` rossa | `test-scripts.sh` §3: "pin dei client diversi da stack/" | **voluto**: i client ripetono la versione letterale; allineali nella stessa PR (per Serena: rileggi `memory_tools.py`) |
 | `./backup-db.sh` lanciato nella VM | `No such file`: lo script sta in `scripts/`, nella VM si copia solo `services/` | copialo esplicitamente (`DEPLOY-RUNBOOK.md` passo 3) |
 

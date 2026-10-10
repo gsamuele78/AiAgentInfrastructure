@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# ollama finto: list/pull/rm parlano col server su OLLAMA_HOST, come il vero CLI.
+. "$(dirname "$(readlink -f "$0")")/_lib" 2>/dev/null || . "${FAKE_STUBS:?}/_lib"
+[ "${1:-}" = "--version" ] && { echo "ollama version is ${FAKE_VERSION:-0.35.1}"; exit 0; }
+host=${OLLAMA_HOST:-127.0.0.1:11434}
+if ! active || [ "$host" != "$(listen)" ]; then echo "Error: could not connect to ollama app at $host" >&2; exit 1; fi
+M="$F/models"; touch "$M"
+case "${1:-}" in
+  list) echo "NAME ID SIZE MODIFIED"; sed 's/$/ abc123 1.9GB now/' "$M" ;;
+  pull) [ "${FAKE_PULL_FAIL:-}" = "$2" ] && { echo "Error: pull $2: no space left" >&2; exit 1; }
+        grep -qxF "$2" "$M" || echo "$2" >> "$M" ;;
+  rm)   grep -vxF "$2" "$M" > "$M.t"; mv "$M.t" "$M" ;;
+esac

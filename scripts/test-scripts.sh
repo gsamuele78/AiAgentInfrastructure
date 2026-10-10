@@ -309,12 +309,17 @@ done
 # La GPU si cerca sul BUS PCI, non nella presenza di nvidia-smi: dedurre
 # l'hardware da un binario mente su OS atomico senza driver proprietari
 # (Bazzite/Silverblue), a dGPU spenta (Optimus) e dentro un container.
-for f in scripts/detect-hardware.sh scripts/setup-ollama.sh scripts/deploy-all.sh; do
+for f in scripts/detect-hardware.sh scripts/setup-ollama.sh; do
   b=$(basename "$f")
   grep -q 'nvidia_pci_devices' "$f" \
     && ok "$b rileva la GPU dal bus PCI, non da nvidia-smi" \
     || ko "$b deduce la GPU dalla presenza di nvidia-smi" "falso negativo su OS atomico o dGPU spenta"
 done
+# deploy-all.sh non decide sulla GPU: delega a setup-ollama.sh --plan (stessa
+# tabella di detect-hardware.sh). Un `command -v nvidia-smi` qui era la trappola nota.
+if grep -q 'command -v nvidia-smi' scripts/deploy-all.sh || ! grep -q 'setup-ollama.sh --plan' scripts/deploy-all.sh; then
+  ko "deploy-all.sh decide sulla GPU da solo" "deve delegare a setup-ollama.sh --plan (scripts/lib/llm-plan.sh)"
+else ok "deploy-all.sh delega la decisione sulla GPU a setup-ollama.sh --plan"; fi
 # Ogni script che modifica l'HOST deve rifiutarsi di partire da dentro un
 # sandbox: scriverebbe nel sandbox lasciando il sistema com'era, e il silenzio
 # e' il modo peggiore di sbagliare. Su Bazzite capita spesso: molte app,
@@ -356,6 +361,16 @@ if [ -n "$GLINE" ] && [ -n "$DLINE" ] && [ "$GLINE" -lt "$DLINE" ]; then
 else
   ko "create-vm: --destroy non e' protetto dal sandbox_guard" \
      "da un sandbox stamperebbe 'VM rimossa' uscendo 0 senza toccare niente"
+fi
+# setup-ollama.sh ha due rami distruttivi (--rollback, --remove): il guard deve
+# venire PRIMA di entrambi, per la stessa ragione di create-vm --destroy.
+GL=$(grep -n 'sandbox_guard "scripts/setup-ollama.sh"' scripts/setup-ollama.sh | head -1 | cut -d: -f1)
+RL=$(grep -n 'if \[ "\$MODE" = rollback \]' scripts/setup-ollama.sh | head -1 | cut -d: -f1)
+ML=$(grep -n 'if \[ "\$MODE" = remove \]' scripts/setup-ollama.sh | head -1 | cut -d: -f1)
+if [ -n "$GL" ] && [ -n "$RL" ] && [ -n "$ML" ] && [ "$GL" -lt "$RL" ] && [ "$GL" -lt "$ML" ]; then
+  ok "setup-ollama: il sandbox_guard precede --rollback e --remove"
+else
+  ko "setup-ollama: --rollback/--remove non protetti dal sandbox_guard" "il guard va prima dei rami distruttivi"
 fi
 # Il comando d'installazione deve arrivare anche in esecuzione REALE: morendo
 # sul primo tool mancante non veniva mai stampato, e restava solo "manca X".
@@ -528,6 +543,20 @@ miss = need - deny
 if miss: print("    mancano:", sorted(miss))
 sys.exit(1 if miss else 0)
 PYX
+
+sec "6. Comportamento: LLM locale su un sistema finto (tests/setup-ollama)"
+# Install → verifiche → fallimento → rollback automatico, rollback manuale,
+# idempotenza, rimozione, decisioni dall'hardware. Stub al posto di systemd,
+# ollama, curl: gira ovunque, non tocca l'host.
+# SKIP_BEHAVIOR=1 lo salta: lo usa tests/mutation/run.sh per le mutazioni dei
+# controlli statici, che non hanno bisogno dei 48 scenari a ogni copia del repo.
+if [ "${SKIP_BEHAVIOR:-0}" = 1 ]; then
+  echo -e "  \033[2m–\033[0m scenari saltati (SKIP_BEHAVIOR=1)"
+elif HOUT=$(tests/setup-ollama/run.sh 2>&1); then
+  ok "setup-ollama: $(printf '%s' "$HOUT" | grep -o '✓ [0-9]*' | tail -1 | tr -d '✓ ') scenari verdi (install, rollback, remove, hw)"
+else
+  ko "setup-ollama: scenari rossi" "$(printf '%s' "$HOUT" | grep '✗' | head -5)"
+fi
 
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do

@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Al posto di `curl https://ollama.com/install.sh | sh`: stessi file, stessi posti.
+. "$(dirname "$0")/_lib"
+[ "${FAKE_INSTALL_FAIL:-0}" = 1 ] && { echo "install: download fallito" >&2; exit 1; }
+mkdir -p "$OLLAMA_ROOT/usr/local/bin" "$OLLAMA_ROOT/usr/local/lib/ollama" "$OLLAMA_ROOT/usr/share/ollama" "$OLLAMA_ROOT/etc/systemd/system"
+cp "$(dirname "$0")/ollama.real" "$OLLAMA_ROOT/usr/local/bin/ollama"; chmod +x "$OLLAMA_ROOT/usr/local/bin/ollama"
+touch "$OLLAMA_ROOT/usr/local/lib/ollama/libggml.so"
+printf '[Service]\nExecStart=/usr/local/bin/ollama serve\n' > "$OLLAMA_ROOT/etc/systemd/system/ollama.service"
+echo "127.0.0.1:11434" > "$F/listen"; touch "$F/active"

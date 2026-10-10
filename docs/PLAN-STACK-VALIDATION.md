@@ -128,6 +128,9 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
   installa, un pin che nessuno usa sarebbe falso.
 
 ### P2 — Fatti hw/OS e primitive di piattaforma *(ADR-0018)*
+- **Anticipato per il solo LLM locale** (ADR-0023): `scripts/lib/llm-plan.sh`
+  (tabella hw → modelli del gateway) e `scripts/lib/journal.sh` (registro +
+  rollback di ADR-0018) esistono già; `stack.py` dovrà assorbirli, non affiancarli.
 - **Deliverable**: `detect-hardware.sh --json` (os_family, atomic, ublue,
   sandbox, GPU vendor/VRAM/driver, RAM, chassis, KVM, spazio su `/var`);
   `scripts/lib/platform.sh` con primitive per strato (`pkg_present`,
@@ -262,6 +265,9 @@ cosa, il test deve diventare rosso), come già fatto per la catena `auto`.
 | 2026-10-10 | Step 0 | progetti in cui l'installer lascia un `.serena/project.yml` caricabile da Serena 1.7.0 | 0 (KeyError `language_servers`) | 1 di 1 provato (+ 2° run senza scritture) | 1 | ✔ |
 | 2026-10-10 | P1 | componenti con pin letto da Dependabot (`stack/components.toml`, stessi 25 prima e dopo) | 5/25 (20%) | 19/25 (76%) | statico | ✘ obiettivo ≥ 90% non raggiunto: 6 rinviati a P2/P4 con motivo |
 | 2026-10-10 | P1 | controlli sui pin con test di mutazione | 0 | 3 controlli, 15 mutazioni rosse | 15 | ✔ |
+| 2026-10-10 | P2/P3 (solo LLM locale, ADR-0023) | decisioni hw corrette su profili (laptop PRD, 4+12, 4+8, 8, 24, L40S, CPU 16/8, GPU 2 GB, disco 3/6) | 2 tabelle divergenti; con ≥ 20 GB `auto` senza modello | 11/11 attese, 1 tabella | statico | ✔ |
+| 2026-10-10 | P3 (solo LLM locale) | cambiamenti al 2° run identico (TC-10) | non misurato (nessun registro) | 0 (registro vuoto, rimosso) | sistema finto | ✔ (da confermare sull'host) |
+| 2026-10-10 | P3 (solo LLM locale) | rollback riporta lo stato pre-run (TC-11) | non disponibile | binario, unit, override, firewall, modelli: tutti ripristinati; preesistenti intatti | sistema finto | ✔ (da confermare sull'host) |
 | | | | | | | |
 
 ### Registro prove Bazzite S1 (compilare)

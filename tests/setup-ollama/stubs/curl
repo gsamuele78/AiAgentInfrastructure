@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# curl finto: solo l'API di Ollama, e solo se il server ascolta a quell'indirizzo.
+. "$(dirname "$0")/_lib"
+url=""; for a in "$@"; do case "$a" in http://*) url=$a ;; esac; done
+hp=${url#http://}; hp=${hp%%/*}; path=/${url#http://*/}
+active && [ "$hp" = "$(listen)" ] || exit 7
+case "$path" in
+  /api/version) echo '{"version":"0.35.1"}' ;;
+  /api/tags) echo '{"models":[]}' ;;
+  /api/generate)
+    [ "${FAKE_GEN_EMPTY:-0}" = 1 ] && { echo '{"response":""}'; exit 0; }
+    tps=${FAKE_TPS:-20}; echo "{\"response\":\"OK\",\"eval_count\":8,\"eval_duration\":$(( 8000000000 / tps ))}" ;;
+  *) exit 22 ;;
+esac
