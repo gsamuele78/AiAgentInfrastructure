@@ -92,6 +92,51 @@ jobs:
       - name: Catalogo tests/mutation/catalog.tsv
         run: tests/mutation/run.sh
 
+  os-matrix:
+    # P2 / TC-13 (PLAN-STACK-VALIDATION, Fase C "Matrice OS"): gli strati S3/S4
+    # e il rilevamento girano davvero su Debian 13 e Fedora, non solo su Ubuntu.
+    # rpm-ostree (Bazzite, S1) in un container non ha senso: lo coprono le
+    # fixture di tests/platform, e la prova vera resta manuale (ADR-0018).
+    name: OS reale ${{ matrix.image }} (fatti, TC-13, LLM locale)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: "debian:13"
+            family: debian
+            prep: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 git ca-certificates iproute2 procps >/dev/null
+          - image: "fedora:44"
+            family: fedora
+            prep: dnf install -y -q python3 git-core iproute procps-ng findutils diffutils gawk >/dev/null
+    container: ${{ matrix.image }}
+    defaults: { run: { shell: bash } }
+    steps:
+      - name: Prerequisiti minimi
+        run: ${{ matrix.prep }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Fatti del sistema reale (detect-hardware.sh --json)
+        env: { FAMILY: "${{ matrix.family }}" }
+        run: |
+          ./scripts/detect-hardware.sh --json | tee /tmp/facts.json
+          python3 - <<'PY'
+          import json, os, sys
+          f = json.load(open("/tmp/facts.json"))
+          bad = []
+          if f.get("schema") != 1: bad.append(f"schema {f.get('schema')}")
+          if f.get("os_family") != os.environ["FAMILY"]: bad.append(f"os_family {f.get('os_family')} != {os.environ['FAMILY']}")
+          if f.get("atomic") is not False: bad.append("atomic dovrebbe essere false")
+          if not f.get("sandbox"): bad.append("dentro un container sandbox non puo' essere vuoto")
+          if not isinstance(f.get("ram_gb"), int) or f["ram_gb"] <= 0: bad.append(f"ram_gb {f.get('ram_gb')}")
+          print("\n".join(bad) or "fatti coerenti con il container")
+          sys.exit(1 if bad else 0)
+          PY
+      - name: TC-13 su fixture
+        run: tests/platform/run.sh
+      - name: LLM locale su sistema finto (setup-ollama, 48 scenari)
+        run: tests/setup-ollama/run.sh
+
   serena:
     name: Serena carica .serena/project.yml (versione del pin)
     runs-on: ubuntu-latest

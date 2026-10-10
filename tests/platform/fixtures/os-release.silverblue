@@ -1,0 +1,6 @@
+NAME="Fedora Linux"
+VERSION="44 (Silverblue)"
+ID=fedora
+VERSION_ID=44
+VARIANT_ID=silverblue
+PRETTY_NAME="Fedora Linux 44 (Silverblue)"

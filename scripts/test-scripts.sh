@@ -568,6 +568,18 @@ else
   ko "setup-ollama: scenari rossi" "$(printf '%s' "$HOUT" | grep '✗' | head -5)"
 fi
 
+sec "6b. TC-13: dai fatti hw/OS alle scelte, su fixture (tests/platform)"
+# Debian 13, Bazzite, Bazzite-nvidia, Flatpak, toolbox, Fedora, Silverblue, VFIO:
+# fatti di detect-hardware.sh --json e decisioni di scripts/lib/platform.sh.
+# Nessuna azione S1 automatica (ADR-0018 regola 2). Stessa regola di SKIP_BEHAVIOR.
+if [ "${SKIP_BEHAVIOR:-0}" = 1 ]; then
+  echo -e "  \033[2m–\033[0m scenari saltati (SKIP_BEHAVIOR=1)"
+elif POUT=$(tests/platform/run.sh 2>&1); then
+  ok "TC-13: $(printf '%s' "$POUT" | grep -o '✓ [0-9]*' | tail -1 | tr -d '✓ ') controlli verdi su fixture (fatti e decisioni)"
+else
+  ko "TC-13: decisioni hw/OS rosse" "$(printf '%s' "$POUT" | grep '✗' | head -5)"
+fi
+
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
   [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"
