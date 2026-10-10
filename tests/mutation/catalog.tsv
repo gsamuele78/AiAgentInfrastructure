@@ -34,3 +34,5 @@ OLLAMA registro vuoto non tolto	nessun nuovo registro	tests/setup-ollama/run.sh	
 OLLAMA CPU scarica anche il 7b	solo il 3b	tests/setup-ollama/run.sh	sed -i 's/echo "cpu|$small||/echo "cpu|$small $main||/' scripts/lib/llm-plan.sh
 OLLAMA uninstall lascia il binario	binario rimosso	tests/setup-ollama/run.sh	sed -i 's/^  $SUDO rm -f "$bin"; /  /' scripts/setup-ollama.sh
 OLLAMA rollback ignora i file	override del run rimosso	tests/setup-ollama/run.sh	sed -i 's/^      file)$/      fileX)/' scripts/lib/journal.sh
+deploy fase 7 neutralizzata	verifica neutralizzata	./scripts/test-scripts.sh	sed -i 's|^verify devops-audit.sh; verify audit-integration.py; verify test-all.sh$|run "./test-all.sh \|\| true"|' scripts/deploy-all.sh
+deploy fase 1 torna stampata	passi della VM stampati	./scripts/test-scripts.sh	sed -i 's|^VFAIL=""$|echo "  ssh $VM_USER@<VM_IP>"; VFAIL=""|' scripts/deploy-all.sh

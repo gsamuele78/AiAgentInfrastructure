@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Stato** | proposto · 2026-10-10 |
+| **Stato** | in corso · aggiornato 2026-10-10: P0 e Step 0 uniti (#8), P1 unito (#9, 19/25 pin tracciati, gate ✘ dichiarato), parte Ollama di P2/P3 unita (#10, ADR-0023). Restano P0b (serve il deploy), P2, P3 e oltre |
 | **ADR** | [0017](adr/0017-manifest-componenti-e-validatore-unico.md) manifest + validatore · [0018](adr/0018-installazione-idempotente-e-rollback-debian-bazzite.md) install/rollback Debian 13 + Bazzite · [0019](adr/0019-pratiche-openhands-skill-per-ruolo-e-serena.md) pratiche OpenHands, skill, Serena · [0020](adr/0020-dependabot-e-scala-di-autoaggiornamento.md) Dependabot · [0021](adr/0021-misurare-prima-di-adottare-e-oh-my-openagent.md) protocollo di misura, oh-my-openagent |
-| **Già fatto in questa PR** | P0 (sotto): fix Serena, `dependabot.yml`, ADR 0017–0021 |
+| **Fatto** | P0: fix Serena, `dependabot.yml`, ADR 0017–0021 · P1: pin leggibili da Dependabot, `FROM` a digest · ADR-0023: LLM locale con rollback |
 | **Step 0** | allineamento con Infra-Iam-PKI: [matrice](ALIGNMENT-INFRA-IAM-PKI.md), [ADR-0022](adr/0022-standard-condiviso-con-infra-iam-pki.md); [runbook del primo deploy](DEPLOY-RUNBOOK.md) |
 
 Richiesta di partenza: integrare Serena e le skill in modo fluido, ispirarsi
@@ -66,7 +66,7 @@ mattpocock/skills, oh-my-openagent, Dependabot schema), non la documentazione.
 | A14 | Serena configurata solo per opencode, non per Claude Code | `clients/` | bassa | P1 (`.mcp.json`, ADR-0022) |
 | A15–A19 | Emersi dallo Step 0 (Serena `project.yml` senza `language_servers`, GPU da `nvidia-smi` in `deploy-all.sh`, `backup-db.sh` mai copiato nella VM, HC-01/HC-06 su BIOME) | [`ALIGNMENT-INFRA-IAM-PKI.md`](ALIGNMENT-INFRA-IAM-PKI.md) | fino ad alta | Step 0 / P1 |
 
-**Pre-requisiti** prima di P1: la PR #4 (catena `auto`, ADR-0016) unita; il
+**Pre-requisiti** prima di P1: la PR #4 (catena `auto`, ADR-0016) unita ✅; il
 gateway deployato almeno una volta (debito #6), altrimenti le baseline di P0b
 non hanno una catena reale su cui misurare. Il deploy si fa con
 [`DEPLOY-RUNBOOK.md`](DEPLOY-RUNBOOK.md): la sua scheda è la prima riga del registro.

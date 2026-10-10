@@ -18,11 +18,14 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 ```bash
 ./scripts/detect-hardware.sh --emit-config   # cosa regge la macchina
 ./scripts/create-vm.sh                       # crea la VM (cloud-init, riproducibile)
-./scripts/setup-ollama.sh                    # LLM locale, configurato e verificato
+./scripts/setup-ollama.sh --plan             # cosa regge l'hardware per l'LLM locale (nessuna modifica)
 ./scripts/deploy-all.sh --dry-run            # vedi le 8 fasi
-./scripts/deploy-all.sh                      # esegui con checkpoint
+./scripts/deploy-all.sh                      # esegui con checkpoint (la fase 6 installa l'LLM locale)
 ./scripts/test-all.sh                        # verifica tutto
 ```
+
+> **Primo deploy reale?** Segui [`docs/DEPLOY-RUNBOOK.md`](docs/DEPLOY-RUNBOOK.md):
+> stesso ordine di `deploy-all.sh`, con snapshot, criteri di superamento e scheda.
 
 > **Lavori con un agente AI su questo repo?** Il contesto sta in
 > [`AGENTS.md`](AGENTS.md) (letto da opencode; `CLAUDE.md` vi rimanda).
@@ -33,9 +36,12 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 ├── AGENTS.md                 ★ contesto per agenti AI (+ CLAUDE.md che vi rimanda)
 ├── docs/
 │   ├── PRD.md                requisiti, scope, non-goals, accettazione
-│   ├── adr/                  15 Architecture Decision Records
+│   ├── adr/                  Architecture Decision Records (indice: adr/README.md)
 │   ├── TEST-PLAN.md          matrice requisiti→test, casi critici
 │   ├── INSTALL_GUIDE.md      ★ deploy passo-passo
+│   ├── DEPLOY-RUNBOOK.md     ★ primo deploy reale: snapshot, criteri, scheda
+│   ├── PLAN-STACK-VALIDATION.md  piano P0–P7 (validatore, idempotenza, skill)
+│   ├── ALIGNMENT-INFRA-IAM-PKI.md  cosa si condivide con Infra-Iam-PKI (ADR-0022)
 │   ├── DUAL-AUTH.md          abbonamento Claude Pro + gateway insieme
 │   ├── CLAUDE-SUBSCRIPTION.md  auth, precedenza variabili, termini d'uso
 │   ├── AGENTS-SETUP.md       opencode, OpenChamber, MCP, VSCodium
@@ -43,7 +49,7 @@ per dati sensibili, LLM locale e self-hosted BIOME.
 │   ├── VM-DEBIAN-INSTALL.md  netinstall minimale (fallback manuale)
 │   ├── VM-KVM-GUIDE.md       rete, riserva DHCP, snapshot
 │   ├── DOCKER-HARDENING.md   data-root, log driver, journald
-│   ├── GPU-LOCAL-LLM.md      Ollama su A2000 (4 GB) + offload
+│   ├── GPU-LOCAL-LLM.md      LLM locale deciso dall'hardware, rollback (ADR-0023)
 │   ├── OPENROUTER-SYNC.md    catalogo OpenRouter nel DB (F8)
 │   ├── BIOME-L40S.md         vLLM + mTLS step-ca
 │   ├── GITHUB-SETUP.md       primo push, branch protection, runner

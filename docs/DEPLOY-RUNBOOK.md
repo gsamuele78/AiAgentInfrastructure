@@ -72,6 +72,9 @@ virsh -c qemu:///system snapshot-create-as "$VM_NAME" r1-clean-install --descrip
   `rpm-ostree install …` + reboot). Per ricominciare: `./scripts/create-vm.sh --destroy`.
 
 ## 3. Servizi nella VM
+> `./scripts/deploy-all.sh 1` esegue gli stessi comandi (rispondi "s" alla
+> creazione della VM, già fatta al passo 2). Nel primo deploy conviene farli a
+> mano: la scheda C chiede la durata della build e gli ID delle immagini.
 ```bash
 ssh "$VM_USER@$VM_IP" 'mkdir -p ~/llm-services'
 # services/* non include i dotfile: .env.example va nominato. Un services/.env
