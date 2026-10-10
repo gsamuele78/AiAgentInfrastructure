@@ -1,6 +1,6 @@
-# 0024 — mise gestisce lo strato S3 (Node, opencode, tool Python); scelto per misura
+# 0024 — mise gestisce lo strato S3 (Node, opencode, tool Python), lo script resta come ripiego; scelto per misura
 
-- **Status**: Proposed — l'esito della misura è definitivo; l'adozione (pin in `stack/`, installazione) aspetta l'approvazione
+- **Status**: Accepted (2026-10-10, mise primario + script di ripiego) — adozione in `scripts/install-user-tools.sh`
 - **Data**: 2026-10-10
 - **Relazione**: chiude la regola 5 di [0018](0018-installazione-idempotente-e-rollback-debian-bazzite.md) ("mise vs brew"); applica il protocollo di [0021](0021-misurare-prima-di-adottare-e-oh-my-openagent.md); `uv` per i tool Python resta come in [0022](0022-standard-condiviso-con-infra-iam-pki.md).
 
@@ -64,7 +64,7 @@ l'esito: distrobox è escluso comunque per P3.
 | distrobox (GPL-3.0) | Node/opencode isolati dal sistema | `$HOME` condivisa: non è un rollback; 72 s per tornare indietro |
 
 ## Decisione
-Lo strato S3 è gestito da **mise**: un `mise.toml` in `stack/` dichiara Node,
+Lo strato S3 è gestito da **mise**, con lo script della baseline come ripiego (punto 5): un `mise.toml` in `stack/` dichiara Node,
 opencode (backend `npm:`) e i tool Python (backend `pipx:` eseguito da `uv`); il
 rollback è il `mise.toml` precedente da git + `mise install`.
 
@@ -75,11 +75,30 @@ Dettagli vincolanti:
 2. **Il binario di mise** si installa dalla release ufficiale con verifica
    sha256 (`SHASUMS256.txt`) in `~/.local/bin`; la versione è un pin in
    `stack/versions.conf`. Su Bazzite è S3: nessun `rpm-ostree`, nessun reboot.
-3. **Pin proposti** (cooldown ≥ 7 giorni, ADR-0020): Node **24.21.0** (LTS),
-   opencode **1.18.34**, mise **2026.10.0**. Entrano in `stack/` nella PR che
-   adotta questo ADR, non in questa.
+3. **Pin** (cooldown ≥ 7 giorni, ADR-0020): Node **24.21.0** (LTS),
+   opencode **1.18.34**, mise **2026.10.0**. opencode in `stack/package.json`
+   (Dependabot npm lo segue); Node e mise in `stack/versions.conf` (a mano).
 4. `uv` resta il motore dei tool Python (via `pipx.uvx = true`), e
    `uvx --from serena-agent==<pin>` nei client non cambia.
+5. **Ripiego: lo script della baseline**, che ha superato le stesse soglie
+   (A1–A4 pieni su tre OS, rollback ≈ 5 s). Vale la pena tenerlo perché il
+   caso c'è già: in uno degli ambienti di questa misura le release di GitHub
+   erano bloccate dal proxy e mise **non si poteva installare**, mentre
+   nodejs.org, npm e PyPI rispondevano. Regole perché non diventi una seconda
+   verità:
+   - **stessi pin**: entrambi i percorsi leggono `stack/` e nient'altro; il
+     file di mise si *genera* dai pin, non si scrive a mano;
+   - **stessa verifica**: dopo l'installazione le versioni sul `PATH` devono
+     essere i pin, qualunque percorso sia stato usato;
+   - **mai silenzioso**: `auto` usa mise se c'è o si installa con verifica
+     sha256; se no passa allo script **con un avviso** e lo scrive nel
+     journal; `--backend mise` non ripiega mai (fallisce);
+   - **provato in CI**: il benchmark `bench-install` misura entrambi; se lo
+     script smette di superare A1–A4 si rimuove, non si ripara di nascosto.
+   Se convivono, vince l'ordine del `PATH` fissato da `clients/shell-env.sh`
+   (shim di mise prima di `~/.local/bin`). Nessuno dei due cancella i file
+   dell'altro: la verifica stampa da dove arriva `node` e fallisce se le
+   versioni sul `PATH` non sono i pin.
 
 ## Conseguenze
 **Positive:** pin esatti e rollback quasi istantaneo, identici su Debian 13,
@@ -89,10 +108,11 @@ chiama `mise install` invece di tre installatori.
 **Negative / costi accettati:**
 - Un gestore in più nella catena di fiducia; scarica i runtime da GitHub e da
   nodejs.org.
-- **Dependabot non conosce `mise.toml`**: i pin di Node e opencode vanno
-  aggiornati a mano col cooldown di ADR-0020, o restano anche in
-  `stack/package.json` come fonte per Dependabot con un controllo di coerenza
-  in `test-scripts.sh` (da decidere nella PR di adozione).
+- **Dependabot non conosce il formato di mise**: per questo il file di mise si
+  genera dai pin di `stack/` (opencode tracciato da Dependabot via
+  `package.json`; Node e mise a mano, col cooldown di ADR-0020).
+- Due percorsi di installazione da mantenere: il costo del ripiego, accettato
+  finché la CI lo prova.
 - Bazzite non è stato misurato: G1 è un controllo sulla documentazione.
 - I tempi a freddo dipendono dalla rete del runner; i rollback no.
 

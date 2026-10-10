@@ -66,8 +66,13 @@ else
   sed -i "s/^excluded_tools: \[\]\$/excluded_tools: [${MEMTOOLS// /, }]/" "$SPY"
   echo "  $SPY creato (memoria esclusa)"
 fi
-say "1b) graphify (mappa d'insieme, occasionale)"
-[ "${SKIP_GRAPHIFY:-0}" = 1 ] || { run "uv tool install 'graphifyy==$GRAPHIFY_PIN' || true"; run "graphify install || true"; }
+say "1b) Node, opencode, graphify $GRAPHIFY_PIN (strato S3, ADR-0024)"
+# mise primario, ripiego script con avviso; journal e --rollback suoi.
+if [ "${SKIP_USER_TOOLS:-0}" = 1 ]; then echo "  saltato (SKIP_USER_TOOLS=1)"
+elif [ "$DRY" = 1 ]; then "$HERE/install-user-tools.sh" --dry-run | sed 's/^/  /'
+else "$HERE/install-user-tools.sh" || echo "  ⚠️ strato S3 non verificato: ./install-user-tools.sh --check"; fi
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims:$HOME/.local/bin:$PATH"
+[ "${SKIP_GRAPHIFY:-0}" = 1 ] || run "graphify install || true"
 say "2) mattpocock/skills"
 # La CLI e' pinnata; il CONTENUTO del repo mattpocock no (HEAD): allowlist e
 # commit pinnato arrivano con P4 (ADR-0019). Dichiarato in stack/components.toml.

@@ -1,10 +1,19 @@
 name: bench-install
 # P2b (PLAN-STACK-VALIDATION, ADR-0021): metodi di installazione e rollback
 # dello strato S3 misurati contro le soglie di bench/install-methods/PREREG.md.
-# Non e' un gate di ogni PR: gira quando cambia il benchmark o a mano.
+# Non e' un gate di ogni PR: gira quando cambiano il benchmark, l'installer
+# di S3 o i suoi pin, oppure a mano.
 on:
   pull_request:
-    paths: ["bench/install-methods/**", ".github/workflows/bench-install.yml"]
+    paths:
+      - "bench/install-methods/**"
+      - "scripts/install-user-tools.sh"
+      - "scripts/lib/user-tools.sh"
+      - "stack/versions.conf"
+      - "stack/package.json"
+      - "stack/requirements-tools.txt"
+      - "tests/user-tools/**"
+      - ".github/workflows/bench-install.yml"
   workflow_dispatch:
 permissions:
   contents: read
@@ -71,3 +80,28 @@ jobs:
       - name: Esito contro le soglie
         if: always()
         run: bench/install-methods/report.py bench/results | tee -a "$GITHUB_STEP_SUMMARY"
+
+  user-tools-e2e:
+    # ADR-0024 end-to-end: mise, ripiego con GitHub bloccato, --backend mise che
+    # non ripiega, rollback su entrambi i percorsi (tests/user-tools/e2e.sh).
+    name: install-user-tools e2e su ${{ matrix.image || 'ubuntu-latest' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ""
+            prep: python3 -m pip install -q --user uv==0.11.7 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          - image: "debian:13"
+            prep: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-pip curl ca-certificates xz-utils >/dev/null && pip install -q --break-system-packages uv==0.11.7
+          - image: "fedora:44"
+            prep: dnf install -y -q python3 python3-pip curl xz tar findutils >/dev/null && pip install -q uv==0.11.7
+    container: ${{ matrix.image || null }}
+    defaults: { run: { shell: bash } }
+    steps:
+      - name: Prerequisiti
+        run: ${{ matrix.prep }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: e2e
+        run: tests/user-tools/e2e.sh

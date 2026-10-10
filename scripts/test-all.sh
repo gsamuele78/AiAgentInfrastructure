@@ -70,7 +70,7 @@ if [ -n "$KEY" ]; then
 fi; fi
 
 if want agents; then sec "4. Agenti"
-has opencode && pass "opencode" || fail "opencode assente" "curl -fsSL https://opencode.ai/install | bash"
+has opencode && pass "opencode" || fail "opencode assente" "./scripts/install-user-tools.sh (ADR-0024)"
 python3 -c 'import socket,sys;s=socket.socket();s.settimeout(1);sys.exit(0 if s.connect_ex(("127.0.0.1",3000))==0 else 1)' 2>/dev/null \
   && pass "opencode server :3000" || skip "opencode server" "systemctl --user start opencode.service"
 C="${XDG_CONFIG_HOME:-$HOME/.config}/opencode/opencode.jsonc"

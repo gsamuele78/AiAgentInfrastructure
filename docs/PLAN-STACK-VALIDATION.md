@@ -152,8 +152,8 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
   pre-registrate. Esito in [ADR-0024](adr/0024-mise-per-gli-strumenti-utente-misurato.md):
   **mise** (pin esatti, rollback 0,02 s su Debian 13/Fedora/Ubuntu); brew e nix
   esclusi per i pin, distrobox per il tempo di rollback (72 s) e la `$HOME`
-  condivisa. **Resta**: approvare ADR-0024, poi `stack/mise.toml` con i pin di
-  Node e opencode.
+  condivisa. ADR-0024 accettato (mise primario, script di ripiego); adozione in
+  `scripts/install-user-tools.sh` con i pin di Node e opencode in `stack/`.
 
 ### P3 — `stack.py`: plan / install / validate / rollback *(ADR-0017, 0018)*
 - **Deliverable**: `scripts/stack.py` (stdlib), journal in

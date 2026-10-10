@@ -3,20 +3,23 @@
 Ordine: prerequisiti → opencode → MCP → OpenChamber → VSCodium.
 
 ## 1. Prerequisiti
-```bash
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh | bash
-nvm install --lts                       # Node >= 18 per gli MCP npx
-curl -LsSf https://astral.sh/uv/install.sh | sh    # per Serena/graphify
-sudo apt install -y ripgrep
-```
+`uv` (per Serena e graphify) e `ripgrep`. Su Debian `sudo apt install -y ripgrep`;
+su Bazzite `ripgrep` c'e' gia' nell'immagine. Node **non** si installa a mano
+(niente nvm, niente Node della distro): lo fa il passo 2, alla versione pinnata.
 
-## 2. opencode
+## 2. Node, opencode, graphify (strato S3, ADR-0024)
 ```bash
-curl -fsSL https://opencode.ai/install | bash      # → ~/.opencode/bin/opencode
-# alt: npm i -g opencode-ai | brew install anomalyco/tap/opencode | pacman -S opencode
-echo 'export PATH="$HOME/.opencode/bin:$PATH"' >> ~/.bashrc && source ~/.bashrc
+./scripts/install-user-tools.sh --dry-run   # cosa farebbe
+./scripts/install-user-tools.sh             # mise; se GitHub non risponde, ripiego script CON avviso
+./scripts/install-user-tools.sh --check     # versioni sul PATH == pin di stack/
+./scripts/install-user-tools.sh --rollback  # annulla l'ultimo run
+echo 'source /percorso/del/repo/clients/shell-env.sh' >> ~/.bashrc   # PATH: shim di mise, ~/.local/bin
 opencode serve --port 3000 --hostname 127.0.0.1    # server che OpenChamber pilota
 ```
+Versioni: `stack/versions.conf` (Node, mise), `stack/package.json` (opencode),
+`stack/requirements-tools.txt` (graphify). Tutto in `$HOME`, nessun `sudo`,
+su Debian 13 e Bazzite allo stesso modo. Un vecchio `~/.opencode/bin` (installer
+curl) resta in coda al `PATH` e non vince sul pin: si puo' rimuovere.
 ⚠️ Esiste una **beta 2.0** (`@opencode-ai/cli@next`, binario `opencode2`): la doc
 avverte che può cancellare i dati e che config/API cambiano. **Resta sulla stable.**
 
