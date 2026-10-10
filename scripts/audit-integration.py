@@ -121,6 +121,18 @@ L("INFO" if active("headroom.service") else "PASS",
   "headroom.service attivo (variante B?)" if active("headroom.service") else "headroom proxy non attivo",
   "ok se e' la lane abbonamento (ADR-0014); verifica l'upstream: DEVE essere api.anthropic.com"
   if active("headroom.service") else "")
+# headroom sull'host e' installato a mano (ADR-0014) ma ha lo stesso pin del
+# callback: services/requirements-callback.txt, aggiornato da Dependabot.
+# Una sola versione di headroom-ai per i due punti di compressione.
+if shutil.which("headroom"):
+    pin=re.search(r"^headroom-ai==(\S+)",rt(Path(__file__).resolve().parent.parent/"services/requirements-callback.txt") or "",re.M)
+    try: out=subprocess.run(["headroom","--version"],capture_output=True,text=True,timeout=10).stdout
+    except Exception: out=""
+    have=re.search(r"\d+\.\d+\.\d+",out)
+    if not pin or not have: L("INFO","headroom sull'host: versione non verificabile","headroom --version")
+    elif have.group(0)==pin.group(1): L("PASS",f"headroom sull'host {have.group(0)} = pin del callback")
+    else: L("WARN",f"headroom sull'host {have.group(0)} != pin {pin.group(1)}",
+            f"uv tool install --force headroom-ai=={pin.group(1)} (services/requirements-callback.txt)")
 L("WARN" if active("postgresql.service",False) else "PASS",
   "postgresql host attivo" if active("postgresql.service",False) else "postgres host non attivo",
   "verificato litellm-only: systemd/postgres-decision.md" if active("postgresql.service",False) else "")

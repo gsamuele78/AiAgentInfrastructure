@@ -9,15 +9,15 @@
 #
 # Dove stanno i pin (P1, ADR-0017):
 #   services/Dockerfile           FROM letterali + digest (debito #1 chiuso)
-#   services/requirements-callback.txt   headroom-ai nell'immagine del gateway
+#   services/requirements-callback.txt   headroom-ai: callback del gateway e, stesso pin, headroom sull'host (ADR-0014)
 #   stack/requirements-tools.txt  tool Python dell'host (serena-agent, graphifyy)
-#   stack/package.json            MCP Node, CLI skills, AgentShield
+#   stack/package.json            MCP Node (fetch compreso), CLI skills, AgentShield
 # I client ripetono le versioni letterali: una PR su stack/ e' ROSSA finche' non
 # si allineano i client (test-scripts.sh §3). Voluto: vedi stack/requirements-tools.txt.
 #
 # Cosa NON copre (stack/components.toml, `pin = "none"`): commit di
-# mattpocock/skills (P4), opencode e Ollama (script d'installazione upstream),
-# fetch-mcp (build locale da git), runtime Node (P2).
+# mattpocock/skills (P4), opencode e Ollama (script d'installazione upstream;
+# Ollama ha un pin in stack/versions.conf, aggiornato a mano), runtime Node (P2).
 version: 2
 updates:
   - package-ecosystem: github-actions

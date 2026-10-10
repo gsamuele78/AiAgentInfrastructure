@@ -128,6 +128,20 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
      (installato a mano, ADR-0014), fetch-mcp (build da git).
   `headroom-ai` sull'host non è in `requirements-tools.txt`: nessuno script lo
   installa, un pin che nessuno usa sarebbe falso.
+- **Completamento P1 (PR successiva)**: 21/25 (84%), ancora sotto il 90%.
+  - `mcp-fetch` → pacchetto npm `mcp-fetch-server` (stesso repo
+    `zcaceres/fetch-mcp`), pinnato in `stack/package.json`: niente più build da git.
+  - `headroom-host` → **stesso pin del callback** (`services/requirements-callback.txt`):
+    una sola versione di `headroom-ai` per i due punti di compressione di
+    ADR-0014. Resta installato a mano, ma ora il pin ha un consumatore:
+    `audit-integration.py` §6 segnala la deriva (controllo con mutazione).
+  - Nuovo controllo: ogni pin di `stack/package.json` deve avere un consumatore.
+  - **Ollama resta non tracciato, per scelta.** Dependabot non legge
+    `versions.conf`; l'unico modo sarebbe un Dockerfile "sentinella"
+    (`FROM ollama/ollama:X`) che nessuno costruisce, letto da `setup-ollama.sh`.
+    Funzionerebbe, ma è un file che mente su cosa sia: non si fa.
+  - Restano: opencode e Node (P2b, l'altro filone di P2), mattpocock (P4).
+    Con P2b si arriva a 23/25 (92%): obiettivo raggiunto senza Ollama.
 
 ### P2 — Fatti hw/OS e primitive di piattaforma *(ADR-0018)*
 - **Anticipato per il solo LLM locale** (ADR-0023): `scripts/lib/llm-plan.sh`
@@ -272,6 +286,8 @@ cosa, il test deve diventare rosso), come già fatto per la catena `auto`.
 | 2026-10-10 | Step 0 | progetti in cui l'installer lascia un `.serena/project.yml` caricabile da Serena 1.7.0 | 0 (KeyError `language_servers`) | 1 di 1 provato (+ 2° run senza scritture) | 1 | ✔ |
 | 2026-10-10 | P1 | componenti con pin letto da Dependabot (`stack/components.toml`, stessi 25 prima e dopo) | 5/25 (20%) | 19/25 (76%) | statico | ✘ obiettivo ≥ 90% non raggiunto: 6 rinviati a P2/P4 con motivo |
 | 2026-10-10 | P1 | controlli sui pin con test di mutazione | 0 | 3 controlli, 15 mutazioni rosse | 15 | ✔ |
+| 2026-10-10 | P1 (completamento) | componenti con pin letto da Dependabot (stessi 25) | 19/25 (76%) | 21/25 (84%) | statico | ✘ ≥ 90% non ancora: opencode e Node in P2b, mattpocock in P4, Ollama non tracciabile senza un file finto |
+| 2026-10-10 | P1 (completamento) | controlli nuovi con mutazione (pin senza consumatore, deriva headroom sull'host) | 0 | 2 controlli, 3 mutazioni rosse | 3 | ✔ |
 | 2026-10-10 | P2/P3 (solo LLM locale, ADR-0023) | decisioni hw corrette su profili (laptop PRD, 4+12, 4+8, 8, 24, L40S, CPU 16/8, GPU 2 GB, disco 3/6) | 2 tabelle divergenti; con ≥ 20 GB `auto` senza modello | 11/11 attese, 1 tabella | statico | ✔ |
 | 2026-10-10 | P3 (solo LLM locale) | cambiamenti al 2° run identico (TC-10) | non misurato (nessun registro) | 0 (registro vuoto, rimosso) | sistema finto | ✔ (da confermare sull'host) |
 | 2026-10-10 | P3 (solo LLM locale) | rollback riporta lo stato pre-run (TC-11) | non disponibile | binario, unit, override, firewall, modelli: tutti ripristinati; preesistenti intatti | sistema finto | ✔ (da confermare sull'host) |
