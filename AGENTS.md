@@ -147,6 +147,7 @@ tests/serena/check-project-yml.sh     # Serena alla versione del pin carica .ser
 | Modello locale scelto solo dalla VRAM (es. 14b con 24 GB) | `auto` punta al 7b che non c'e': ogni richiesta salta al cloud in silenzio | i modelli sono quelli delle lane del gateway; l'hw sceglie quali entrano (ADR-0023) |
 | campo vuoto letto con `read -r A B` | i valori slittano: un modello muto risultava "risponde" | segnaposto esplicito (`-`) per il vuoto; scenario 6 di `tests/setup-ollama` |
 | PR di Dependabot su `stack/` rossa | `test-scripts.sh` §3: "pin dei client diversi da stack/" | **voluto**: i client ripetono la versione letterale; allineali nella stessa PR (per Serena: rileggi `memory_tools.py`) |
+| verifica di `deploy-all.sh` con `\|\| true` | uno stack rosso arrivava alla baseline (fase 8) come se fosse verde | la fase 7 raccoglie gli esiti ed esce 1; `test-scripts.sh` §3 lo verifica |
 | `./backup-db.sh` lanciato nella VM | `No such file`: lo script sta in `scripts/`, nella VM si copia solo `services/` | copialo esplicitamente (`DEPLOY-RUNBOOK.md` passo 3) |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)

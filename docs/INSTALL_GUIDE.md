@@ -3,7 +3,12 @@
 > **ORDINE PSE: la VM va su e verificata PRIMA di pulire l'host.**
 > Invertirlo ti lascia senza gateway a metà migrazione.
 
-Percorso guidato: `./scripts/deploy-all.sh` (8 fasi con checkpoint).
+Percorso guidato: `./scripts/deploy-all.sh` (8 fasi con checkpoint). Esegue
+anche i passi nella VM (copia, `.env`, build, avvio), scrive `forward.env` da
+`VM_IP`, copia la master key, si ferma se la verifica è rossa e fa baseline,
+backup e restore. Restano a te: le **chiavi API** nel `.env` della VM, la
+scelta della variante di Claude Code (`/login`), ciò che richiede un reboot.
+Variabili: `VM_NAME`, `VM_IP`, `VM_USER`, `VM_DIR` (default come `create-vm.sh`).
 Sotto, la versione manuale.
 
 **Primo deploy reale**: segui [`DEPLOY-RUNBOOK.md`](DEPLOY-RUNBOOK.md) — stesso
@@ -32,7 +37,8 @@ curl -s http://127.0.0.1:4000/health/liveliness
 
 ## Fase 2 — Forward host → VM
 ```bash
-sudo apt install -y socat
+sudo apt install -y socat          # Debian
+# Bazzite / OS atomico: rpm-ostree install socat && systemctl reboot
 install -d ~/.config/litellm
 cp systemd/forward.env.example ~/.config/litellm/forward.env
 $EDITOR ~/.config/litellm/forward.env && chmod 600 ~/.config/litellm/forward.env
@@ -53,7 +59,8 @@ postgres host, mette in sicurezza il vecchio config con segreti in chiaro.
 ```bash
 ./scripts/stack-selective-install.sh /path/al/tuo/repo
 echo 'source '"$PWD"'/clients/shell-env.sh' >> ~/.bashrc && source ~/.bashrc
-systemctl --user restart opencode.service
+# solo se opencode gira come servizio utente sul tuo host:
+systemctl --user restart opencode.service 2>/dev/null || true
 ```
 
 ## Fase 5 — Doppia autenticazione
@@ -62,9 +69,11 @@ Claude Code sull'abbonamento (scegli variante A/B/C).
 
 ## Fase 6 — LLM locale (opzionale)
 ```bash
-./scripts/setup-ollama.sh --dry-run && ./scripts/setup-ollama.sh
+./scripts/setup-ollama.sh --plan      # cosa regge l'hardware, nessuna modifica
+./scripts/setup-ollama.sh             # installa, verifica ogni passo, annulla da solo se fallisce
+./scripts/setup-ollama.sh --rollback  # annulla l'ultimo run (--list) · --remove disinstalla
 ```
-Razionale e scelta dei modelli: `GPU-LOCAL-LLM.md`. Bind su `192.168.122.1`,
+Razionale e scelta dei modelli: `GPU-LOCAL-LLM.md`, ADR-0023. Bind su `192.168.122.1`,
 **mai** `0.0.0.0` (Ollama non ha autenticazione).
 
 ## Fase 7 — Verifica

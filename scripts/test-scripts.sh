@@ -320,6 +320,16 @@ done
 if grep -q 'command -v nvidia-smi' scripts/deploy-all.sh || ! grep -q 'setup-ollama.sh --plan' scripts/deploy-all.sh; then
   ko "deploy-all.sh decide sulla GPU da solo" "deve delegare a setup-ollama.sh --plan (scripts/lib/llm-plan.sh)"
 else ok "deploy-all.sh delega la decisione sulla GPU a setup-ollama.sh --plan"; fi
+# La verifica della fase 7 deve poter fallire: con `|| true` uno stack rosso
+# arrivava alla fase 8 (baseline) come se fosse verde.
+if grep -qE '(devops-audit\.sh|audit-integration\.py|test-all\.sh)[^"]*\|\|[[:space:]]*true' scripts/deploy-all.sh; then
+  ko "deploy-all.sh: verifica neutralizzata da '|| true'" "uno stack rosso non deve arrivare alla baseline"
+else ok "deploy-all.sh: la verifica della fase 7 puo' fallire"; fi
+# I passi della VM si eseguono, non si stampano: un segnaposto <VM_IP> in
+# deploy-all.sh vuol dire che un passo e' tornato manuale.
+if grep -q '<VM_IP>' scripts/deploy-all.sh; then
+  ko "deploy-all.sh: passi della VM stampati con <VM_IP> invece che eseguiti" "usa VM_IP/VM_SSH e vm()"
+else ok "deploy-all.sh: i passi della VM sono eseguiti, non stampati"; fi
 # Ogni script che modifica l'HOST deve rifiutarsi di partire da dentro un
 # sandbox: scriverebbe nel sandbox lasciando il sistema com'era, e il silenzio
 # e' il modo peggiore di sbagliare. Su Bazzite capita spesso: molte app,
