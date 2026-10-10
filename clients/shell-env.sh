@@ -1,7 +1,10 @@
 # shellcheck shell=bash
 # Questo file va SORGATO (source), non eseguito: nessuno shebang.
 # Sorgi da ~/.bashrc. NON esporta ANTHROPIC_*: scavalcherebbe l'abbonamento.
-export PATH="$HOME/.opencode/bin:$PATH"
+# Strato S3 (ADR-0024): prima gli shim di mise, poi ~/.local/bin (ripiego
+# "script" e binario di mise). ~/.opencode/bin (vecchio installer curl) in coda:
+# non deve vincere sul pin. Verifica: scripts/install-user-tools.sh --check
+export PATH="${XDG_DATA_HOME:-$HOME/.local/share}/mise/shims:$HOME/.local/bin:$PATH:$HOME/.opencode/bin"
 [ -r "$HOME/.config/litellm/master.key" ] && \
   export LITELLM_MASTER_KEY="$(cat "$HOME/.config/litellm/master.key")"
 export OPENAI_BASE_URL="http://127.0.0.1:4000/v1"

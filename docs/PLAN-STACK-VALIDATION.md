@@ -147,8 +147,13 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
 - **Stato (P2a)**: fatti (`detect-hardware.sh --json`), `scripts/lib/platform.sh`
   (`platform_decide`, `pkg_present`, `pkg_add`, `svc_render`, `tool_pin`),
   fixture + TC-13, job CI `os-matrix` su `debian:13` e `fedora:44`.
-  **Resta per P2b**: scelta mise vs brew col protocollo ADR-0021 (serve
-  misurare installazioni reali) e i pin di Node e opencode in `stack/`.
+  **Stato (P2b)**: misura fatta (`bench/install-methods/`, workflow
+  `bench-install`): baseline, mise, brew, nix, distrobox contro soglie
+  pre-registrate. Esito in [ADR-0024](adr/0024-mise-per-gli-strumenti-utente-misurato.md):
+  **mise** (pin esatti, rollback 0,02 s su Debian 13/Fedora/Ubuntu); brew e nix
+  esclusi per i pin, distrobox per il tempo di rollback (72 s) e la `$HOME`
+  condivisa. ADR-0024 accettato (mise primario, script di ripiego); adozione in
+  `scripts/install-user-tools.sh` con i pin di Node e opencode in `stack/`.
 
 ### P3 — `stack.py`: plan / install / validate / rollback *(ADR-0017, 0018)*
 - **Deliverable**: `scripts/stack.py` (stdlib), journal in

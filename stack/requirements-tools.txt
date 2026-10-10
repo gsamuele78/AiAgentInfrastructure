@@ -5,7 +5,7 @@
 #     e .mcp.json: test-scripts.sh §3 li confronta con questa riga. Una PR di
 #     Dependabot su serena-agent e' quindi ROSSA finche' non si allineano i tre
 #     client: e' voluto, a ogni major va riletto serena/tools/memory_tools.py.
-#   graphifyy: `uv tool install graphifyy==<pin>` (stack-selective-install.sh).
+#   graphifyy: installato da scripts/install-user-tools.sh (mise pipx:, ripiego uv tool; ADR-0024).
 # Versioni scelte con lo stesso cooldown di ADR-0020 (>= 7 giorni dalla release).
 serena-agent==1.7.0
 graphifyy==0.9.74

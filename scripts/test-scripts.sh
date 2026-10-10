@@ -212,6 +212,19 @@ else
   echo -e "  \033[2m–\033[0m controlli P1 saltati (serve python >= 3.11 per tomllib)"
 fi
 
+# ADR-0024: strato S3 solo in $HOME, mai sudo; gli script npm di mise si
+# permettono per NOME (allow_builds), mai tutti; il ripiego non e' silenzioso.
+UT=scripts/lib/user-tools.sh; UI=scripts/install-user-tools.sh
+if grep -v '^[[:space:]]*#' "$UT" "$UI" | grep -qE '(^|[^_A-Za-z])sudo[[:space:]]'; then
+  ko "ADR-0024: lo strato S3 usa sudo" "S3 sta in \$HOME (ADR-0018): niente sudo"
+else ok "ADR-0024: strato S3 senza sudo"; fi
+if grep -q 'allow_builds = \["opencode-ai"\]' "$UT" && ! grep -qE 'ignore-scripts=false|dangerously-allow-all' "$UT"; then
+  ok "ADR-0024: postinstall npm permessi per nome"
+else ko "ADR-0024: postinstall npm non permessi per nome" "allow_builds = [\"opencode-ai\"], mai --ignore-scripts=false"; fi
+grep -q 'RIPIEGO' "$UI" && grep -q "journal_undo \"echo 'questo run ha usato il ripiego script'\"" "$UI" \
+  && ok "ADR-0024: il ripiego avvisa e si registra" \
+  || ko "ADR-0024: ripiego silenzioso" "auto deve avvisare e scriverlo nel journal"
+
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
 # Un controllo che fallisce per motivi ambientali e' peggio di un controllo assente.

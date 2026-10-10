@@ -127,13 +127,13 @@ L("WARN" if active("postgresql.service",False) else "PASS",
 
 sec("7. Agenti")
 L("PASS" if shutil.which("opencode") else "WARN",f"opencode {'installato' if shutil.which('opencode') else 'non nel PATH'}",
-  "" if shutil.which("opencode") else "curl -fsSL https://opencode.ai/install | bash")
+  "" if shutil.which("opencode") else "./scripts/install-user-tools.sh (mise, ripiego script: ADR-0024)")
 # Serena non si installa globalmente: i client la avviano con `uvx --from
 # serena-agent==<pin>` (ADR-0022). Serve uvx; la versione la decide il pin.
 L("PASS" if shutil.which("uvx") else "WARN",f"uvx {'presente (Serena pinnata via uvx)' if shutil.which('uvx') else 'assente: Serena non parte'}",
   "" if shutil.which("uvx") else "installa uv: https://docs.astral.sh/uv/")
 L("PASS" if shutil.which("graphify") else "INFO",f"graphify {'installato' if shutil.which('graphify') else 'assente'}",
-  "" if shutil.which("graphify") else "uv tool install graphifyy==<pin in stack/requirements-tools.txt> (opzionale)")
+  "" if shutil.which("graphify") else "./scripts/install-user-tools.sh (pin in stack/requirements-tools.txt)")
 srv=port(3000)
 L("PASS" if srv else "INFO",f"opencode server :3000 {'attivo' if srv else 'non attivo'}",
   "" if srv else "systemctl --user start opencode.service")
