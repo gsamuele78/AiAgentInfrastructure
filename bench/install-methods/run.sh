@@ -55,6 +55,9 @@ json.dump(d, open(sys.argv[2], "w"), indent=1, sort_keys=True)
 print(json.dumps(d, sort_keys=True))
 PY
   echo "log: $LOG" >&2
+  # Su errore il log resta in un temporaneo del runner: se ne stampa la coda.
+  [ "$1" = error ] && { echo "--- ultime righe di $LOG ---" >&2; tail -40 "$LOG" >&2; }
+  return 0
 }
 now(){ date +%s.%N; }
 # timed <var> <cmd...>: tempo reale in secondi (2 decimali) in <var>; ritorna il codice del comando.
