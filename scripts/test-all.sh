@@ -80,7 +80,8 @@ if [ -f "$C" ]; then
 else fail "opencode.jsonc assente" "copia clients/opencode.jsonc"; fi; fi
 
 if want mcp; then sec "5. MCP & skill"
-has serena && pass "Serena" || fail "Serena assente" "uv tool install -p 3.13 serena-agent@latest --prerelease=allow"
+# Serena gira via `uvx --from serena-agent==<pin>` (ADR-0022): serve uvx, non un binario globale.
+has uvx && pass "uvx (Serena pinnata)" || fail "uvx assente: Serena non parte" "installa uv (docs/AGENTS-SETUP.md §4)"
 has graphify && pass "graphify" || skip "graphify" "opzionale"
 [ -f "$PWD/.serena/project.yml" ] && grep -q edit_memory "$PWD/.serena/project.yml" 2>/dev/null \
   && pass "Serena memory OFF (TC-03)" || skip "Serena memory policy" "stack-selective-install.sh nel repo"; fi

@@ -128,10 +128,12 @@ L("WARN" if active("postgresql.service",False) else "PASS",
 sec("7. Agenti")
 L("PASS" if shutil.which("opencode") else "WARN",f"opencode {'installato' if shutil.which('opencode') else 'non nel PATH'}",
   "" if shutil.which("opencode") else "curl -fsSL https://opencode.ai/install | bash")
-L("PASS" if shutil.which("serena") else "WARN",f"serena {'installata' if shutil.which('serena') else 'assente'}",
-  "" if shutil.which("serena") else "uv tool install -p 3.13 serena-agent@latest --prerelease=allow")
+# Serena non si installa globalmente: i client la avviano con `uvx --from
+# serena-agent==<pin>` (ADR-0022). Serve uvx; la versione la decide il pin.
+L("PASS" if shutil.which("uvx") else "WARN",f"uvx {'presente (Serena pinnata via uvx)' if shutil.which('uvx') else 'assente: Serena non parte'}",
+  "" if shutil.which("uvx") else "installa uv: https://docs.astral.sh/uv/")
 L("PASS" if shutil.which("graphify") else "INFO",f"graphify {'installato' if shutil.which('graphify') else 'assente'}",
-  "" if shutil.which("graphify") else "uv tool install graphifyy (opzionale)")
+  "" if shutil.which("graphify") else "uv tool install graphifyy==<pin in stack/requirements-tools.txt> (opzionale)")
 srv=port(3000)
 L("PASS" if srv else "INFO",f"opencode server :3000 {'attivo' if srv else 'non attivo'}",
   "" if srv else "systemctl --user start opencode.service")
@@ -141,7 +143,7 @@ if shutil.which("openchamber") and srv:
 sec("8. Metodologia & security")
 dirs=[HOME/".claude"/"skills",CFG/"opencode"/"skill",Path.cwd()/".agents"]
 mp=any(d.exists() and any(("grill" in p.name or "to-spec" in p.name) for p in d.rglob("*")) for d in dirs if d.exists())
-L("PASS" if mp else "INFO",f"mattpocock {'presenti' if mp else 'assenti'}","" if mp else "npx skills@latest add mattpocock/skills")
+L("PASS" if mp else "INFO",f"mattpocock {'presenti' if mp else 'assenti'}","" if mp else "scripts/stack-selective-install.sh (CLI skills pinnata)")
 sp=any(d.exists() and any("superpowers" in p.name.lower() for p in d.rglob("*")) for d in dirs if d.exists())
 if mp and sp: L("FAIL","mattpocock + superpowers insieme","OVERLAP: tienine uno (ADR-0006)")
 

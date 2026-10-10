@@ -1,0 +1,16 @@
+{
+  "name": "aiagentinfra-stack-pins",
+  "private": true,
+  "description": "Pin dei tool Node usati dai client (MCP via npx, CLI skills, AgentShield). Fonte del pin per Dependabot (npm): non si installa con npm. I client ripetono la versione letterale (npx -y pkg@versione); test-scripts.sh §3 li confronta con questo file.",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/server-filesystem": "2026.8.31",
+    "@modelcontextprotocol/server-memory": "2026.8.31",
+    "@modelcontextprotocol/server-sequential-thinking": "2026.8.31",
+    "@upstash/context7-mcp": "4.1.1",
+    "ecc-agentshield": "1.6.0",
+    "firecrawl-mcp": "3.27.3",
+    "skills": "1.7.0",
+    "tavily-mcp": "0.2.22"
+  }
+}

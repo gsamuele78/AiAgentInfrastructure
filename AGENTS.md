@@ -138,11 +138,13 @@ attenzione continua.
 | test comportamentale su un percorso che chiede conferma | verde per il motivo sbagliato (si ferma alla conferma, non al guard) | asserzione strutturale, o passa la conferma vera |
 | `.serena/project.yml` scritto a mano senza `language_servers` | Serena 1.7.0 non carica il progetto (`KeyError`), nessun errore all'installazione | lo genera `serena project create`; si tocca solo `excluded_tools` (`test-scripts.sh` §4) |
 | Serena con `--context agent` in opencode (come in Infra-Iam-PKI) | 5 tool duplicati in context, e una shell che **scavalca le `permission`** di opencode | `ide` per opencode (ADR-0022) |
+| PR di Dependabot su `stack/` rossa | `test-scripts.sh` §3: "pin dei client diversi da stack/" | **voluto**: i client ripetono la versione letterale; allineali nella stessa PR (per Serena: rileggi `memory_tools.py`) |
 | `./backup-db.sh` lanciato nella VM | `No such file`: lo script sta in `scripts/`, nella VM si copia solo `services/` | copialo esplicitamente (`DEPLOY-RUNBOOK.md` passo 3) |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)
 
-1. Immagine LiteLLM su tag mobile `main-stable` → pinnare un digest sha256
+1. ~~Immagine LiteLLM su tag mobile `main-stable`~~ → **chiuso da P1**: `FROM`
+   letterale + digest in `services/Dockerfile`, aggiornato da Dependabot
 2. Nessun alerting (accettabile per uso personale)
 3. Credenziali storiche esposte in un file 664 → **ruotarle** (non risulta fatto)
 4. Nessuno scan CVE delle immagini

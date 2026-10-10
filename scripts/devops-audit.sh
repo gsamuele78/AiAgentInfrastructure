@@ -11,7 +11,9 @@ SVC=services
 
 sec "1. Immutabilita' & riproducibilita'"
 grep -q 'image: litellm-headroom:local' $SVC/docker-compose.yml && pass "immagine taggata (build riproducibile)" || warn "nessun tag locale"
-grep -qE 'sha256:' $SVC/.env 2>/dev/null && pass "immagine base pinnata a digest" || warn "tag mobile 'main-stable'" "PSE: pinna un digest sha256 prima della produzione"
+# Debito #1: il pin a digest sta nel FROM del Dockerfile (P1), dove Dependabot lo legge.
+grep -qE '^FROM ghcr.io/berriai/litellm-database:[^ ]+@sha256:' $SVC/Dockerfile && pass "immagine base pinnata a digest (Dockerfile)" \
+  || warn "immagine base senza digest" "PSE: FROM letterale + @sha256 (ADR-0020)"
 grep -q ':ro' $SVC/docker-compose.yml && pass "config read-only" || fail "config non :ro"
 
 sec "2. Segreti"
@@ -59,7 +61,7 @@ sec "7. Change management"
 
 sec "8. Supply chain"
 grep -q 'python -c "from headroom' $SVC/Dockerfile && pass "gate fail-fast sul callback" || warn "nessun gate in build"
-echo -e "  \033[36mINFO\033[0m 'npx ecc-agentshield scan' per l'audit dei config agente"
+echo -e "  \033[36mINFO\033[0m AgentShield (versione pinnata in stack/package.json) gira in stack-selective-install.sh"
 
 echo -e "\n\033[36m== Esito DevOps ==\033[0m\n  PASS: $P   WARN: $W   FAIL: $F"
 [ "$F" -gt 0 ] && { echo -e "  \033[31mFAIL bloccanti.\033[0m"; exit 1; }

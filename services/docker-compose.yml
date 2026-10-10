@@ -3,7 +3,7 @@ services:
     build:
       context: .
       args:
-        LITELLM_IMAGE_TAG: "${LITELLM_IMAGE_TAG:-main-stable}"
+        # L'immagine base e' pinnata nel Dockerfile (FROM + digest), non qui.
         # vuoto = solo il core di headroom-ai (vedi Dockerfile: [all] = torch)
         HEADROOM_EXTRAS: "${HEADROOM_EXTRAS:-}"
     image: litellm-headroom:local
@@ -32,7 +32,7 @@ services:
       driver: local
       options: { max-size: "15m", max-file: "5" }
   db:
-    image: postgres:16-alpine
+    image: postgres:16.15-alpine
     container_name: litellm-db
     restart: unless-stopped
     environment:
@@ -61,7 +61,9 @@ services:
   # docs/BIOME-L40S.md -- e la VPN di ateneo attiva sull'host.
   biome-tls:
     profiles: ["biome"]
-    image: alpine:3.20
+    # 3.20 e' fuori supporto da aprile 2026. Stunnel installato all'avvio viola
+    # HC-06 (rilievo A19): resta da sistemare con un'immagine dedicata.
+    image: alpine:3.24.2
     container_name: biome-tls
     restart: unless-stopped
     command: sh -c "apk add --no-cache stunnel && exec stunnel /etc/stunnel/stunnel.conf"

@@ -26,14 +26,19 @@
   // Compattazione lato client: si somma a headroom (lato gateway), non lo
   // sostituisce. prune toglie gli output di tool vecchi prima di riassumere.
   "compaction": { "auto": true, "prune": true, "reserved": 10000 },
+  // Versioni LETTERALI e pinnate: la fonte per Dependabot e' stack/package.json e
+  // stack/requirements-tools.txt; test-scripts.sh §3 verifica che coincidano.
+  // Serena: uvx col pin esatto (ADR-0022), contesto `ide` (NON `agent`: esporrebbe
+  // una shell fuori dalle permission di opencode). Il primo avvio scarica il pacchetto.
   "mcp": {
-    "serena": { "type": "local", "command": ["serena","start-mcp-server","--context","ide","--project-from-cwd"], "enabled": true },
-    "mem":    { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-memory"] },
-    "reason": { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-sequential-thinking"] },
-    "fs":     { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-filesystem","{env:HOME}/workspace"] },
-    "ctx7":   { "type": "local", "command": ["npx","-y","@upstash/context7-mcp"], "environment": { "CONTEXT7_API_KEY": "example-key" } },
-    "crawl":  { "type": "local", "command": ["npx","-y","firecrawl-mcp"], "environment": { "FIRECRAWL_API_KEY": "example-key" }, "enabled": true, "timeout": 60000 },
+    "serena": { "type": "local", "command": ["uvx","--from","serena-agent==1.7.0","serena","start-mcp-server","--project-from-cwd","--context","ide","--open-web-dashboard","False"], "enabled": true, "timeout": 60000 },
+    "mem":    { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-memory@2026.8.31"] },
+    "reason": { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-sequential-thinking@2026.8.31"] },
+    "fs":     { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-filesystem@2026.8.31","{env:HOME}/workspace"] },
+    "ctx7":   { "type": "local", "command": ["npx","-y","@upstash/context7-mcp@4.1.1"], "environment": { "CONTEXT7_API_KEY": "example-key" } },
+    "crawl":  { "type": "local", "command": ["npx","-y","firecrawl-mcp@3.27.3"], "environment": { "FIRECRAWL_API_KEY": "example-key" }, "enabled": true, "timeout": 60000 },
+    // build locale da git, fuori da Dependabot: componente non pinnato (stack/components.toml).
     "fetch":  { "type": "local", "command": ["node","{env:HOME}/.local/share/mcp/fetch-mcp/dist/index.js"], "environment": {}, "enabled": true, "timeout": 60000 },
-    "tavily": { "type": "local", "command": ["npx","-y","tavily-mcp@0.2.3"], "environment": { "TAVILY_API_KEY": "example-key" }, "enabled": false }
+    "tavily": { "type": "local", "command": ["npx","-y","tavily-mcp@0.2.22"], "environment": { "TAVILY_API_KEY": "example-key" }, "enabled": false }
   }
 }

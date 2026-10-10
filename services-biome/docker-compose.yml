@@ -5,7 +5,9 @@
 # ============================================================
 services:
   vllm:
-    image: "vllm/vllm-openai:${VLLM_TAG:-latest}"   # PSE: pinna un digest
+    # Tag letterale (Dependabot lo legge; ${VLLM_TAG:-latest} no). Cambiare
+    # versione di vLLM cambia il comportamento del modello: si fa con una PR.
+    image: vllm/vllm-openai:v0.30.0
     container_name: biome-vllm
     restart: unless-stopped
     # nginx gira nello STESSO network namespace (network_mode: service:vllm),
@@ -53,7 +55,7 @@ services:
       options: { max-size: "20m", max-file: "3" }
 
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.30.5-alpine        # ramo stable (pari); 1.27 era mainline
     container_name: biome-nginx
     restart: unless-stopped
     # NIENTE "ports:" qui: la porta 8443 è pubblicata dal servizio vllm, di cui
