@@ -9,7 +9,7 @@
 #
 #  Uso:
 #    run.sh [--model litellm/local-good] [--reps 5] [--tier t|b|all] [--ids t01,b02]
-#           [--early-stop on|off] [--out bench/results/<data>] [--dry-run]
+#           [--early-stop on|off] [--config clients/opencode.jsonc] [--out bench/results/<data>] [--dry-run]
 #  Default modello: local-good, che non ha fallbacks nel gateway (ADR-0021: modello fisso).
 #  Config del client: clients/opencode.jsonc del repo (OPENCODE_CONFIG), cosi' si misura
 #  la config versionata, permission comprese. I t* girano con --auto (approva cio' che non
@@ -24,11 +24,13 @@ REPO="$(cd "$HERE/../.." && pwd)"
 # shellcheck source=lib/workspace.sh
 . "$HERE/lib/workspace.sh"
 MODEL=litellm/local-good; REPS=5; TIER=all; IDS=""; ES=on; DRY=0
+CONFIG="$REPO/clients/opencode.jsonc"   # --config: varianti per gli A/B (bench/compaction)
 OUT="$REPO/bench/results/tasks-$(date -u +%Y%m%dT%H%M%SZ)"
 while [ $# -gt 0 ]; do
   case "$1" in
     --model) MODEL=$2; shift ;; --reps) REPS=$2; shift ;; --tier) TIER=$2; shift ;;
     --ids) IDS=$2; shift ;; --early-stop) ES=$2; shift ;; --out) OUT=$2; shift ;;
+    --config) CONFIG=$2; shift ;;
     --dry-run) DRY=1 ;; -h|--help) sed -n 2,22p "$0"; exit 0 ;;
     *) echo "opzione sconosciuta: $1"; exit 2 ;;
   esac; shift
@@ -41,7 +43,7 @@ for t in "$HERE"/[tb][0-9][0-9]-*/; do
   tasks+=("$t")
 done
 [ ${#tasks[@]} -gt 0 ] || { echo "nessun task selezionato"; exit 2; }
-echo "modello $MODEL · ripetizioni $REPS · early stop $ES · task: ${#tasks[@]} -> $OUT"
+echo "modello $MODEL · ripetizioni $REPS · early stop $ES · config $(basename "$CONFIG") · task: ${#tasks[@]} -> $OUT"
 if [ "$DRY" = 1 ]; then
   for t in "${tasks[@]}"; do echo "  [dry-run] $(basename "$t"): opencode run --format json -m $MODEL \"$(head -c 60 "$t/task.md")...\""; done
   exit 0
@@ -57,7 +59,7 @@ for rep in $(seq 1 "$REPS"); do
     stop=(); [ "$ES" = on ] && [ -f "$t/stop.txt" ] && stop=(--stop "$t/stop.txt")
     caps=(--max-steps 1000000 --max-cost 1000000); [ "$ES" = on ] && caps=(--max-steps 40 --max-cost 0.50)
     trace="$OUT/traces/$id/$rep.jsonl"; sum="$OUT/traces/$id/$rep.summary.json"
-    PATH="$ws/bin:$PATH" OPENCODE_CONFIG="$REPO/clients/opencode.jsonc" \
+    PATH="$ws/bin:$PATH" OPENCODE_CONFIG="$CONFIG" \
       python3 "$HERE/lib/early_stop.py" "${stop[@]}" "${caps[@]}" --trace "$trace" \
         --answer "$ws/.bench/answer.txt" --summary "$sum" -- \
         opencode run --format json -m "$MODEL" --dir "$ws" "${auto[@]}" "$(cat "$t/task.md")" >/dev/null
