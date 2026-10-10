@@ -179,19 +179,35 @@ Poi in `claude`: `/status` deve mostrare l'**abbonamento**, non una API key
 (trappola: `ANTHROPIC_API_KEY` residua = fatturazione a consumo silenziosa).
 - ✔ **passa se**: `/status` mostra l'abbonamento; `test-all.sh claude` senza ✗.
 
-## 10. LLM locale (opzionale)
+## 10. LLM locale (deciso dall'hardware, opzionale)
 ```bash
-./scripts/detect-hardware.sh --emit-config
+./scripts/setup-ollama.sh --plan                 # → scheda D: verdetto e modelli
 ./scripts/setup-ollama.sh --dry-run
-./scripts/setup-ollama.sh
+./scripts/setup-ollama.sh; echo "exit=$?"        # → scheda D: token/s del modello principale
+./scripts/setup-ollama.sh; echo "exit=$?"        # 2° run: deve dire "nessuna modifica" (idempotenza)
 ./scripts/test-all.sh local
 ./scripts/test-all.sh cache                      # ripeti: ora l'anello di auto dovrebbe essere locale
 ```
-- ✔ **passa se**: Ollama risponde su `192.168.122.1:11434` (mai `0.0.0.0`) e
-  `cache` riporta un anello locale per la richiesta corta.
-- Bazzite senza immagine `-nvidia`: `setup-ollama.sh` stampa cosa serve
-  (rebase dell'immagine). **Non** farlo dentro questo runbook: è S1 (ADR-0018),
-  richiede reboot; registra "lane locale: rinviata" e prosegui.
+- **Il piano**: i modelli sono quelli del gateway (3b per local-fast, 7b per
+  local-good e `auto`); l'hardware decide quali entrano. Su questo laptop
+  (4 GB VRAM, 31 GB RAM) il verdetto atteso è `gpu-offload`, 3b + 7b.
+  Se `--plan` dice altro, annotalo: è una delle stime da confermare (ADR-0023).
+- ✔ **passa se**: exit 0; Ollama ascolta **solo** su `192.168.122.1:11434`
+  (lo script annulla il run se lo trova su `0.0.0.0`); il modello principale
+  risponde; il 2° run non cambia niente; `cache` riporta un anello locale.
+- **Exit 1** = un passo è fallito e il run **è già stato annullato**: l'output
+  dice quale. **Exit 2** = prerequisito mancante (virbr0 o OS atomico), nessuna
+  modifica. **Exit 3** = hardware non adatto, nessuna modifica.
+- **Prova il rollback e la rimozione** (servono a TC-11 e a sapere che funzionano):
+  ```bash
+  ./scripts/setup-ollama.sh --rollback --list
+  ./scripts/setup-ollama.sh --remove --keep-models --dry-run   # leggi cosa toglierebbe
+  ```
+  Il rollback vero (`--rollback`) toglie anche i modelli scaricati: fallo solo
+  se vuoi ripartire, poi rilancia `./scripts/setup-ollama.sh`.
+- Bazzite: senza un servizio di sistema `ollama` lo script si ferma con le
+  alternative (exit 2). **Non** fare il rebase dell'immagine dentro questo
+  runbook: è S1 (ADR-0018), richiede reboot; registra "lane locale: rinviata".
 
 ## 11. Verifica completa, baseline, backup e restore (TC-05, TC-06)
 ```bash
@@ -255,6 +271,9 @@ D. CATENA REALE
    TC-09 anello di auto ..........: 
    TC-09 token letti dalla cache .: 
    TC-04 /status = abbonamento ...: 
+   lane locale: verdetto (--plan) : 
+   lane locale: token/s (prova) ..: 
+   lane locale: 2° run = 0 modif. : 
    lane locale: anello per auto ..: 
    test-all completo ✓ / ✗ / – ...: 
    restore-test (TC-05) ..........: 

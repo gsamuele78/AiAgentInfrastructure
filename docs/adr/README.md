@@ -27,5 +27,6 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
 | [0020](0020-dependabot-e-scala-di-autoaggiornamento.md) | Dependabot e scala di autoaggiornamento | Accepted (stadio 0) |
 | [0021](0021-misurare-prima-di-adottare-e-oh-my-openagent.md) | Misurare prima di adottare; oh-my-openagent come esperimento | Proposed |
 | [0022](0022-standard-condiviso-con-infra-iam-pki.md) | Standard condiviso con Infra-Iam-PKI: cosa si adotta, chi possiede i controlli | Accepted |
+| [0023](0023-llm-locale-deciso-dall-hardware-con-rollback.md) | LLM locale: l'hardware sceglie fra i modelli del gateway; install verificata, annullabile, rimovibile | Accepted |
 
 Template: `_template.md`. Regole in `CONTRIBUTING.md`.

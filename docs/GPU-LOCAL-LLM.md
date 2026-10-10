@@ -29,10 +29,54 @@ agentico complesso (sbaglia più spesso il tool-calling). Resta Tier 0/1:
 - FIM/autocomplete (meglio il 3B: più veloce)
 - batch notturni via recipe
 
-## Setup
+## Setup automatico (consigliato): `setup-ollama.sh`
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen2.5-coder:3b && ollama pull qwen2.5-coder:7b
+./scripts/setup-ollama.sh --plan        # cosa regge l'hardware, nessuna modifica
+./scripts/setup-ollama.sh --dry-run     # cosa farebbe
+./scripts/setup-ollama.sh               # installa, configura, verifica
+./scripts/setup-ollama.sh --rollback    # annulla l'ultimo run (--list per elencarli)
+./scripts/setup-ollama.sh --remove      # disinstalla tutto (--keep-models per tenere i modelli)
+```
+**Cosa decide l'hardware** (`scripts/lib/llm-plan.sh`, la stessa tabella che
+stampa `detect-hardware.sh`): i modelli sono **quelli del gateway**
+(`litellm_config.yaml`: `qwen2.5-coder:3b` per local-fast, `qwen2.5-coder:7b`
+per local-good e per il primo anello di `auto`). L'hardware sceglie quali
+entrano, non ne inventa altri: un 14B che nessuna lane referenzia è spazio
+perso, e un `auto` che punta a un modello mai scaricato salta il locale in silenzio.
+
+| Hardware | Verdetto | Modelli |
+|---|---|---|
+| VRAM ≥ 6.5 GB | `gpu` | 3b + 7b in VRAM |
+| VRAM 3.5–6.5 GB, VRAM + RAM utilizzabile ≥ 6.5 GB | `gpu-offload` | 3b in VRAM, 7b in parte in RAM (questo laptop: ~17/28 layer in GPU) |
+| VRAM 3.5–6.5 GB, RAM scarsa | `gpu` | solo 3b — `auto` salta il locale |
+| Nessuna GPU utile, RAM utilizzabile ≥ 3 GB | `cpu` | solo 3b (lento) — `auto` va al cloud **per scelta**: un 7B a 2–5 token/s come primo anello renderebbe ogni sessione più lenta del cloud |
+| RAM o disco insufficienti | `none` | niente: esce 3 senza modifiche |
+
+"RAM utilizzabile" = totale − VM del gateway (`VM_RAM_MB`) − 4 GB per l'host:
+la RAM *libera* del momento renderebbe la scelta casuale.
+
+**Verifiche durante l'installazione**: ogni passo controlla il risultato. Se un
+controllo *duro* fallisce, il run si **annulla da solo** (registro in
+`~/.local/state/aiagentinfra/runs/ollama-*`, `KEEP_ON_FAIL=1` per non farlo):
+
+| Passo | Controllo duro (→ rollback automatico) | Controllo morbido (→ avvertenza) |
+|---|---|---|
+| binario | `ollama --version` risponde | versione ≠ pin in `stack/versions.conf` |
+| servizio | attivo, ascolta su `virbr0:11434`, **mai** su `0.0.0.0`/`[::]` (invariante #3), API risponde | — |
+| firewall | — | regola presente nella zona di virbr0 |
+| modelli | ogni modello del piano risulta dopo il pull | — |
+| prova reale | il modello principale **risponde** a una richiesta | token/s sotto `LLM_MIN_TPS` (5) |
+| dalla VM | — | `curl` dalla VM a Ollama |
+| gateway | — | ogni lane locale di `litellm_config.yaml` ha il suo modello |
+
+Rilanciarlo è sicuro: un secondo run identico non cambia niente e non lascia
+un registro (idempotenza). Il rollback non tocca ciò che c'era prima del run
+(un Ollama già installato, modelli già presenti). Prove: `tests/setup-ollama/run.sh`
+(48 scenari su un sistema finto, anche in CI).
+
+## Setup manuale (riferimento: è ciò che lo script automatizza)
+```bash
+curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.35.1 sh
 sudo systemctl edit ollama.service
 ```
 ```ini
@@ -54,6 +98,9 @@ gruppo `auto` in `services/litellm_config.yaml` (`test-scripts.sh` lo verifica).
 sudo systemctl daemon-reload && sudo systemctl restart ollama
 ss -tlnp | grep 11434            # atteso 192.168.122.1:11434
 sudo ufw allow from 192.168.122.0/24 to any port 11434 proto tcp   # se ufw attivo
+# il CLI parla a 127.0.0.1 per default: col bind su virbr0 va detto dove
+OLLAMA_HOST=192.168.122.1:11434 ollama pull qwen2.5-coder:3b
+OLLAMA_HOST=192.168.122.1:11434 ollama pull qwen2.5-coder:7b
 ```
 Perché non `0.0.0.0`: Ollama **non ha autenticazione**; bindarlo ovunque lo
 esporrebbe alla LAN.
@@ -79,7 +126,10 @@ Tuning offload: `ollama run qwen2.5-coder:7b --verbose` → `/set parameter num_
 
 ## Se cambi hardware
 Con una GPU 12-16 GB (o il cluster BIOME) `qwen2.5-coder:14b` diventa Tier 1.
-La topologia non cambia: sposti solo `api_base`.
+La topologia non cambia: sposti solo `api_base`. Per usarlo davvero cambia
+**prima** le lane in `litellm_config.yaml`, poi rilancia lo script con
+`LLM_MODEL_MAIN=qwen2.5-coder:14b`: l'ordine conta, altrimenti `auto` punta a un
+modello che non c'è.
 
 ## OS atomici (Bazzite, Silverblue, Kinoite, Bluefin)
 
@@ -108,6 +158,7 @@ Altre due cose cambiano su un OS atomico, e gli script ne tengono conto:
 | Cosa | Su un OS atomico |
 |---|---|
 | Installare pacchetti | `rpm-ostree install ...` + **reboot**, non `dnf`/`apt` |
+| Ollama | l'installer ufficiale crea l'utente `ollama` con home in `/usr/share` (sola lettura): `setup-ollama.sh` **non** lo lancia, si ferma con le alternative (`brew install ollama`, container). Configura e verifica il resto **solo** se esiste un servizio di sistema `ollama`: con brew il servizio è utente, e lo script si fermerebbe al riavvio annullando il run. Non ancora automatizzato (P2, ADR-0018) |
 | Firewall | `firewalld`, non `ufw` — `setup-ollama.sh` usa una *rich rule* per aprire la 11434 solo alla subnet libvirt |
 | Spazio disco | `df /` riporta l'overlay **composefs** (circa metà della RAM): per il qcow2 conta `/var`, ed è quello che lo script misura |
 
