@@ -14,7 +14,7 @@
 # v1.104.2 e' cio' a cui puntava `main-stable` il 2026-10-10: il pin congela lo
 # stato di oggi, il cooldown di 14 giorni vale per gli aggiornamenti successivi.
 # uv: stessa versione che usa il Dockerfile upstream di LiteLLM.
-FROM ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a AS uvbin
+FROM ghcr.io/astral-sh/uv:0.13.0@sha256:cdc6093146eb3ff6a40107b38f008b789e050e77ad87865e381d9917da55a168 AS uvbin
 
 FROM ghcr.io/berriai/litellm-database:v1.104.2@sha256:5a9ff0fd7177372f2ccd8949cb121f67e281f4d13d026af51f9c096c0626f50a
 
