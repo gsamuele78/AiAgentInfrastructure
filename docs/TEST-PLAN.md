@@ -68,6 +68,11 @@ questo config manda il prompt corto al locale, quello lungo e quello con il
 locale in errore a `claude-sonnet-4-6`, e mette i breakpoint su system e
 ultimo messaggio.
 
+**TC-10…TC-17 (pianificati)** — idempotenza, rollback, decisioni da hw/OS,
+skill uniche, eval L6, drift di versione, upgrade con rollback automatico: vedi
+`PLAN-STACK-VALIDATION.md` Fase C. Ogni misura di prestazione segue il
+protocollo di ADR-0021 (baseline, soglia pre-registrata, ≥5 run, mediana e IQR).
+
 **TC-03 Nessuna collisione di memoria** — ≤1 memory MCP; Serena con memory esclusa.
 
 **TC-04 Abbonamento non scavalcato** — nessuna `ANTHROPIC_API_KEY`/`AUTH_TOKEN`;

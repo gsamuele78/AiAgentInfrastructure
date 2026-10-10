@@ -54,9 +54,13 @@ else:
     L("WARN" if lg else "PASS", f"alias MCP {'lunghi: '+', '.join(lg) if lg else 'corti ('+str(len(mcp))+')'}",
       "accorcia: reason/mem/fs/ctx7/crawl/fetch" if lg else "")
     sr=next((v for k,v in mcp.items() if "serena" in k.lower()),None)
-    if not sr: L("WARN","Serena non configurata","aggiungi il blocco 'serena' (ide-assistant)")
-    elif "ide-assistant" in " ".join(sr.get("command",[])): L("PASS","Serena semantic-only")
-    else: L("WARN","Serena senza --context ide-assistant","evita overlap coi tool harness")
+    scmd=" ".join(sr.get("command",[])) if sr else ""
+    # 'ide-assistant' e' deprecato: Serena lo rimappa su 'claude-code', il
+    # contesto sbagliato per opencode. Quello giusto e' 'ide'.
+    if not sr: L("WARN","Serena non configurata","aggiungi il blocco 'serena' (--context ide)")
+    elif "--context ide-assistant" in scmd: L("WARN","Serena con --context ide-assistant (deprecato -> claude-code)","usa --context ide")
+    elif re.search(r"--context ide(\s|$)",scmd): L("PASS","Serena semantic-only (--context ide)")
+    else: L("WARN","Serena senza --context ide","evita overlap coi tool harness")
     act=[k for k,v in mcp.items() if v.get("enabled",True)]
     L("PASS" if len(act)<=8 else "WARN",f"{len(act)} MCP attivi","" if len(act)<=8 else "tieni <10 MCP e <80 tool")
 
@@ -68,7 +72,8 @@ if oc:
     if any("mem0" in k.lower() for k in mcp): ms.append("mem0")
     if any("serena" in k.lower() for k in mcp):
         sp=Path.cwd()/".serena"/"project.yml"
-        off=sp.exists() and "write_memory" in sp.read_text(errors="ignore")
+        MEMT=("write_memory","read_memory","list_memories","delete_memory","rename_memory","edit_memory","onboarding")
+        off=sp.exists() and all(t in sp.read_text(errors="ignore") for t in MEMT)
         L("PASS" if off else "WARN","Serena memory disabilitata" if off else "Serena memory NON esclusa",
           "" if off else "scrivi .serena/project.yml (MEMORY-POLICY.md)")
 ctx=Path.cwd()/"AGENTS.md"

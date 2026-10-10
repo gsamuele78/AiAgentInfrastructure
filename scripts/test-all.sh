@@ -82,7 +82,7 @@ else fail "opencode.jsonc assente" "copia clients/opencode.jsonc"; fi; fi
 if want mcp; then sec "5. MCP & skill"
 has serena && pass "Serena" || fail "Serena assente" "uv tool install -p 3.13 serena-agent@latest --prerelease=allow"
 has graphify && pass "graphify" || skip "graphify" "opzionale"
-[ -f "$PWD/.serena/project.yml" ] && grep -q write_memory "$PWD/.serena/project.yml" 2>/dev/null \
+[ -f "$PWD/.serena/project.yml" ] && grep -q edit_memory "$PWD/.serena/project.yml" 2>/dev/null \
   && pass "Serena memory OFF (TC-03)" || skip "Serena memory policy" "stack-selective-install.sh nel repo"; fi
 
 if want claude; then sec "6. Claude Code (TC-04)"

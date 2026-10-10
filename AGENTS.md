@@ -29,7 +29,8 @@ Ollama :11434 (virbr0) ─┘                    └─────────�
 1. `docs/PRD.md` — **soprattutto i non-goal (§3)**. Molte "buone idee"
    contraddicono un non-goal esplicito: in quel caso la risposta è no, o
    serve un nuovo PRD.
-2. `docs/adr/README.md` — le 16 decisioni già prese e il loro perché.
+2. `docs/adr/README.md` — le decisioni già prese e il loro perché (0017–0021
+   sono *Proposed*: il piano è `docs/PLAN-STACK-VALIDATION.md`).
 3. `docs/TEST-PLAN.md` — cosa deve continuare a passare.
 
 ## Invarianti che NON vanno violate
@@ -128,6 +129,9 @@ attenzione continua.
 | `set -o pipefail` con un comando che deve fallire a sinistra della pipe | il pipeline torna 1 anche quando `grep` ha trovato | cattura l'output, poi filtralo |
 | `cache_control_injection_points` accanto a `litellm_params` | nessun errore, nessuna cache: la chiave viene ignorata | va **dentro** `litellm_params` (`test-scripts.sh` §4) |
 | Ollama col `num_ctx` di default | il prompt dell'agente viene troncato in silenzio, risposte senza senso | `num_ctx` esplicito + `OLLAMA_CONTEXT_LENGTH`, stesso valore |
+| Serena con `--context ide-assistant` | nessun errore: Serena lo rimappa su `claude-code`, contesto sbagliato per opencode | `--context ide` (opencode), `claude-code` (Claude Code), `codex` (Codex) |
+| esclusione memoria di Serena scritta una volta per tutte | i tool nuovi (`rename_memory`, `edit_memory`, `onboarding`) passano | `test-scripts.sh` §4 elenca i 7 tool; rileggere `memory_tools.py` a ogni major |
+| "questo plugin migliora le prestazioni" | si adotta senza baseline | ADR-0021: pre-registra la soglia, misura A/B, poi decidi |
 | "usiamo l'abbonamento anche da opencode" (CCR, import OAuth) | funziona finché l'account non viene sospeso | fuori termini: opencode usa le API key del gateway (ADR-0016) |
 | test comportamentale su un percorso che chiede conferma | verde per il motivo sbagliato (si ferma alla conferma, non al guard) | asserzione strutturale, o passa la conferma vera |
 

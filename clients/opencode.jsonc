@@ -27,7 +27,7 @@
   // sostituisce. prune toglie gli output di tool vecchi prima di riassumere.
   "compaction": { "auto": true, "prune": true, "reserved": 10000 },
   "mcp": {
-    "serena": { "type": "local", "command": ["serena","start-mcp-server","--context","ide-assistant","--project-from-cwd"], "enabled": true },
+    "serena": { "type": "local", "command": ["serena","start-mcp-server","--context","ide","--project-from-cwd"], "enabled": true },
     "mem":    { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-memory"] },
     "reason": { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-sequential-thinking"] },
     "fs":     { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-filesystem","{env:HOME}/workspace"] },

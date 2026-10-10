@@ -361,6 +361,19 @@ grep -qE '^[[:space:]]*export[[:space:]]+ANTHROPIC_' clients/shell-env.sh \
   && ko "shell-env.sh esporta ANTHROPIC_*" "scavalca l'abbonamento (DUAL-AUTH.md)" \
   || ok "shell-env.sh non esporta ANTHROPIC_*"
 
+# Serena (ADR-0006/0007): 'ide-assistant' e' deprecato e Serena lo rimappa in
+# silenzio su 'claude-code', il contesto sbagliato per opencode. E la memoria
+# va esclusa per INTERO: rename/edit_memory e onboarding sono arrivati dopo.
+grep -rn 'ide-assistant' clients/ 2>/dev/null \
+  && ko "client con --context ide-assistant" "deprecato: Serena lo mappa su claude-code; usa 'ide'" \
+  || ok "Serena: nessun contesto deprecato nei client"
+MISSING_MEM=""
+for t in write_memory read_memory list_memories delete_memory rename_memory edit_memory onboarding; do
+  grep -q "excluded_tools:.*\b$t\b" scripts/stack-selective-install.sh || MISSING_MEM="$MISSING_MEM $t"
+done
+[ -z "$MISSING_MEM" ] && ok "Serena: tutti i tool di memoria esclusi (ADR-0007)" \
+  || ko "Serena: tool di memoria non esclusi:$MISSING_MEM" "una memoria per livello"
+
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
   [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"
