@@ -15,7 +15,7 @@
 | Req | Test | Livello |
 |---|---|---|
 | F1 | `test-all.sh gateway` — liveness + /v1/models | L5 |
-| F2 | `test-all.sh gateway` — alias coding/smart/cheap | L5 |
+| F2 | `test-all.sh gateway` — alias coding/smart/cheap + gruppo `auto`; `test-all.sh cache` — `auto` risponde e dice quale anello; ordine della catena in `test-scripts.sh` §4 | L1b/L5 |
 | F3 | `test-all.sh compress` — TC-01 | L5 |
 | F4 | header provider OpenRouter | L6 |
 | F5 | `test-all.sh local` — verifica che Ollama risponda; `local-fast`/`local-good` sono nel config versionato ma il test **non** verifica che il gateway li instradi | L5 |
@@ -56,6 +56,22 @@ grezzo. Fallimento probabile: callback non caricato (il gate build lo intercetta
 **TC-02 Nessun bypass del gateway** — `audit-integration.py` §2/§5; 0 riferimenti
 a `:8787` o a URL di provider. Intercetta la regressione più frequente: un tool
 che si riscrive la config (`headroom wrap`).
+
+**TC-09 Prompt caching attraverso il gateway** — `test-all.sh cache`: due
+richieste con lo stesso system prompt (>1024 token) a `claude-haiku-4-5`; la
+seconda deve riportare `cache_read_input_tokens > 0`. Intercetta due guasti
+silenziosi: `cache_control_injection_points` fuori da `litellm_params` (era il
+caso di `claude-opus-4-8` prima di ADR-0016) e headroom che riscrive il
+prefisso in modo non stabile. **Mai eseguito su un gateway reale** (debito #6).
+Verificato invece, con LiteLLM 1.104.2 e upstream simulati, che il router con
+questo config manda il prompt corto al locale, quello lungo e quello con il
+locale in errore a `claude-sonnet-4-6`, e mette i breakpoint su system e
+ultimo messaggio.
+
+**TC-10…TC-17 (pianificati)** — idempotenza, rollback, decisioni da hw/OS,
+skill uniche, eval L6, drift di versione, upgrade con rollback automatico: vedi
+`PLAN-STACK-VALIDATION.md` Fase C. Ogni misura di prestazione segue il
+protocollo di ADR-0021 (baseline, soglia pre-registrata, ≥5 run, mediana e IQR).
 
 **TC-03 Nessuna collisione di memoria** — ≤1 memory MCP; Serena con memory esclusa.
 

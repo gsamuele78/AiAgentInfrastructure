@@ -50,7 +50,7 @@ cd ~/Documents/Cline/MCP/github.com/zcaceres/fetch-mcp && npm install && npm run
 Regole (già applicate in `clients/opencode.jsonc`): **alias corti** (i nomi tool
 diventano `alias_toolname`; alias lunghi causano errori di tool-calling),
 `enabled: false` su quelli non usati ogni sessione, Serena con
-`--context ide-assistant`, **una sola** memory. Verifica con `/mcp` nella TUI.
+`--context ide` (`ide-assistant` è deprecato e Serena lo rimappa su `claude-code`), **una sola** memory. Verifica con `/mcp` nella TUI.
 
 ## 5. OpenChamber
 Prerequisito: opencode. Su Linux: **web/PWA** o estensione (il desktop è solo macOS).

@@ -291,6 +291,89 @@ else
   echo -e "  \033[2m–\033[0m api_base non verificabile (pyyaml assente)"
 fi
 
+# ADR-0016: catena `auto` (locale -> Anthropic -> OpenRouter) e prompt caching.
+# Tutti errori che non si vedono al deploy: una chiave di cache nel posto
+# sbagliato viene ignorata senza un warning, un num_ctx disallineato tronca.
+if python3 -c 'import yaml' 2>/dev/null; then
+  CTX_SH=$(sed -n 's/^CTX=\([0-9]\{1,\}\)$/\1/p' scripts/setup-ollama.sh | head -1)
+  CTX_SH="$CTX_SH" python3 - <<'PYX' && ok "catena auto: locale -> Anthropic -> OpenRouter, cache e contesto coerenti" || ko "catena auto / prompt caching incoerenti (ADR-0016)"
+import os, sys, yaml
+cfg = yaml.safe_load(open("services/litellm_config.yaml"))
+ml = cfg.get("model_list") or []
+names = {m.get("model_name") for m in ml}
+ls = cfg.get("litellm_settings") or {}
+err = []
+# 1. cache_control_injection_points fuori da litellm_params = ignorato.
+for m in ml:
+    if "cache_control_injection_points" in m:
+        err.append(f"{m['model_name']}: cache_control_injection_points fuori da litellm_params")
+# 2. ogni deployment Claude a pagamento ha i breakpoint di cache.
+for m in ml:
+    p = m.get("litellm_params") or {}
+    if "claude" in str(p.get("model", "")) and p.get("api_key") \
+       and not p.get("cache_control_injection_points"):
+        err.append(f"{m['model_name']}: Claude senza prompt caching")
+# 3. `auto` e' un gruppo vero, e il suo deployment e' locale.
+autos = [m for m in ml if m.get("model_name") == "auto"]
+if not autos:
+    err.append("manca il gruppo 'auto'")
+else:
+    p = autos[0]["litellm_params"]
+    if not str(p.get("model", "")).startswith("ollama"):
+        err.append("auto: il primo anello non e' locale")
+    ctx = p.get("num_ctx"); mit = (autos[0].get("model_info") or {}).get("max_input_tokens")
+    if not (isinstance(ctx, int) and isinstance(mit, int) and mit < ctx):
+        err.append(f"auto: serve max_input_tokens < num_ctx (ora {mit} / {ctx})")
+    if os.environ.get("CTX_SH") and str(ctx) != os.environ["CTX_SH"]:
+        err.append(f"auto: num_ctx {ctx} != OLLAMA_CONTEXT_LENGTH {os.environ['CTX_SH']} in setup-ollama.sh")
+# 4. ordine della catena: Anthropic prima di OpenRouter; stessi anelli per i
+#    fallback d'errore e per quelli di contesto.
+def chain(key):
+    for d in ls.get(key) or []:
+        if "auto" in d: return d["auto"]
+    return None
+fb, cw = chain("fallbacks"), chain("context_window_fallbacks")
+if not fb: err.append("auto senza fallbacks")
+elif fb != cw: err.append("auto: fallbacks e context_window_fallbacks diversi")
+else:
+    for n in fb:
+        if n not in names: err.append(f"auto: fallback '{n}' non e' un model_name")
+    prov = [str(next(m for m in ml if m["model_name"] == n)["litellm_params"]["model"]) for n in fb if n in names]
+    kinds = ["or" if x.startswith("openrouter/") else "anthropic" for x in prov]
+    if kinds != sorted(kinds, key=lambda k: k == "or"):
+        err.append(f"auto: ordine errato {fb} (Anthropic prima di OpenRouter)")
+if err:
+    print("    " + "\n    ".join(err)); sys.exit(1)
+PYX
+else
+  echo -e "  \033[2m–\033[0m catena auto non verificabile (pyyaml assente)"
+fi
+# ADR-0016: Claude Code Router non e' adottato. Un client che punta a :3456 e'
+# un secondo gateway (invariante #1), e quello che importa il login OAuth.
+grep -rn ':3456\|:3458' clients/ 2>/dev/null \
+  && ko "client verso Claude Code Router (:3456)" "ADR-0016: un solo gateway" \
+  || ok "nessun client punta a Claude Code Router"
+grep -q '"model": "litellm/auto"' clients/opencode.jsonc \
+  && ok "opencode usa la catena auto del gateway" || ko "opencode non usa litellm/auto" "ADR-0016"
+# shell-env puo' passare ANTHROPIC_* a un singolo processo (claude-gw), mai esportarle:
+# scavalcherebbero l'abbonamento in ogni shell.
+grep -qE '^[[:space:]]*export[[:space:]]+ANTHROPIC_' clients/shell-env.sh \
+  && ko "shell-env.sh esporta ANTHROPIC_*" "scavalca l'abbonamento (DUAL-AUTH.md)" \
+  || ok "shell-env.sh non esporta ANTHROPIC_*"
+
+# Serena (ADR-0006/0007): 'ide-assistant' e' deprecato e Serena lo rimappa in
+# silenzio su 'claude-code', il contesto sbagliato per opencode. E la memoria
+# va esclusa per INTERO: rename/edit_memory e onboarding sono arrivati dopo.
+grep -rn 'ide-assistant' clients/ 2>/dev/null \
+  && ko "client con --context ide-assistant" "deprecato: Serena lo mappa su claude-code; usa 'ide'" \
+  || ok "Serena: nessun contesto deprecato nei client"
+MISSING_MEM=""
+for t in write_memory read_memory list_memories delete_memory rename_memory edit_memory onboarding; do
+  grep -q "excluded_tools:.*\b$t\b" scripts/stack-selective-install.sh || MISSING_MEM="$MISSING_MEM $t"
+done
+[ -z "$MISSING_MEM" ] && ok "Serena: tutti i tool di memoria esclusi (ADR-0007)" \
+  || ko "Serena: tool di memoria non esclusi:$MISSING_MEM" "una memoria per livello"
+
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
   [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"

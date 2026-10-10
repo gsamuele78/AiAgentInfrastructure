@@ -2,7 +2,7 @@
 
 | Layer | Scelta | Disabilita per evitare overlap |
 |---|---|---|
-| Tooling codice (puntuale) | **Serena** (uv locale) | basic tool (`--context ide-assistant`), memory (`project.yml`) |
+| Tooling codice (puntuale) | **Serena** (uv locale) | basic tool (`--context ide`), memory (`project.yml`, 7 tool) |
 | Mappa d'insieme | **graphify** (uv, skill) | — (occasionale, non sempre attivo) |
 | Metodologia | **mattpocock/skills** | — |
 | Security | **AgentShield** (npx, da ECC) | — |

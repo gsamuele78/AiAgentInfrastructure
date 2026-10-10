@@ -34,7 +34,10 @@ run "mkdir -p '$PROJ/.serena'"; bak "$PROJ/.serena/project.yml"
 if [ "$DRY" = 1 ]; then echo "  [dry] scriverebbe $PROJ/.serena/project.yml (excluded_tools: memory)"
 else
 cat > "$PROJ/.serena/project.yml" <<'YML'
-excluded_tools: [write_memory, read_memory, list_memories, delete_memory]
+# Tutti i tool che leggono/scrivono la memoria di Serena (ADR-0007), compresi
+# quelli aggiunti dopo la prima stesura: rename/edit_memory e onboarding (che
+# scrive memorie). Nomi = classi *Tool in snake_case (serena/tools/memory_tools.py).
+excluded_tools: [write_memory, read_memory, list_memories, delete_memory, rename_memory, edit_memory, onboarding]
 record_tool_usage_stats: false
 YML
 echo "  .serena/project.yml in $PROJ"

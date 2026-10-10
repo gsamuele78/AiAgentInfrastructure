@@ -1,16 +1,33 @@
 {
   // ~/.config/opencode/opencode.jsonc — un solo provider verso il gateway.
+  // `auto` = catena locale -> Anthropic (API key) -> OpenRouter, decisa nel
+  // gateway (ADR-0016). opencode NON usa l'abbonamento Claude: i termini lo
+  // limitano a Claude Code e claude.ai (CLAUDE-SUBSCRIPTION.md).
   "$schema": "./opencode.schema.json",
   "provider": {
     "litellm": {
       "npm": "@ai-sdk/openai-compatible",
       "options": { "baseURL": "http://127.0.0.1:4000/v1", "apiKey": "{env:LITELLM_MASTER_KEY}" },
-      "models": { "coding": {}, "smart": {}, "cheap": {}, "claude-opus-4-8": {}, "or-private": {} }
+      "models": {
+        // limit = quello del modello PIU' GRANDE della catena: e' il gateway a
+        // mandare al cloud i prompt che non entrano nel locale. Con il limite
+        // del locale opencode compatterebbe a 12k anche quando risponde Claude.
+        "auto":            { "limit": { "context": 200000, "output": 32000 } },
+        "coding": {}, "smart": {}, "cheap": {},
+        "claude-opus-4-8": { "limit": { "context": 200000, "output": 32000 } },
+        "or-private": {},
+        "local-good":      { "limit": { "context": 12288, "output": 4096 } }
+      }
     }
   },
-  "model": "litellm/coding",
+  "model": "litellm/auto",
+  // titoli e riassunti: niente locale qui, deve rispondere anche a Ollama spento.
+  "small_model": "litellm/cheap",
+  // Compattazione lato client: si somma a headroom (lato gateway), non lo
+  // sostituisce. prune toglie gli output di tool vecchi prima di riassumere.
+  "compaction": { "auto": true, "prune": true, "reserved": 10000 },
   "mcp": {
-    "serena": { "type": "local", "command": ["serena","start-mcp-server","--context","ide-assistant","--project-from-cwd"], "enabled": true },
+    "serena": { "type": "local", "command": ["serena","start-mcp-server","--context","ide","--project-from-cwd"], "enabled": true },
     "mem":    { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-memory"] },
     "reason": { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-sequential-thinking"] },
     "fs":     { "type": "local", "command": ["npx","-y","@modelcontextprotocol/server-filesystem","{env:HOME}/workspace"] },

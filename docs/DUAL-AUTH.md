@@ -44,9 +44,26 @@ negative. In sintesi:
 `forward_client_headers_to_llm_api: true` lato gateway. Aggiunge log e spend.
 ⚠️ Leggi la nota sui termini d'uso in `CLAUDE-SUBSCRIPTION.md`.
 
+## Quando la finestra Pro è esaurita — `claude-gw`
+```bash
+source clients/shell-env.sh
+claude-gw            # Claude Code sulla catena `auto` del gateway (ADR-0016)
+```
+Imposta `ANTHROPIC_BASE_URL`/`ANTHROPIC_AUTH_TOKEN`/`ANTHROPIC_MODEL=auto`
+**solo per quel processo**: `claude` liscio resta sull'abbonamento. Fattura a
+consumo (API key Anthropic, poi OpenRouter). Usa `LITELLM_VIRTUAL_KEY` se c'è,
+altrimenti la master key: meglio una virtual key con budget.
+
+## E opencode con l'abbonamento?
+**No.** È la domanda che riapre il tema a ogni nuovo tool (l'ultimo: Claude Code
+Router, che importa il login OAuth di Claude Code e lo offre a ogni agente).
+I termini limitano i token dell'abbonamento a Claude Code e claude.ai; opencode
+usa la catena `auto` del gateway, che dopo il locale passa per l'**API key**.
+Dettagli e alternative scartate: [ADR-0016](adr/0016-catena-auto-nel-gateway-non-claude-code-router.md).
+
 ## Verifica
 ```bash
 claude → /status     # deve dire ABBONAMENTO, non API key
-opencode → /models   # coding / smart / cheap dal gateway
+opencode → /models   # auto / coding / smart / cheap dal gateway
 ./scripts/test-all.sh claude   # TC-04
 ```

@@ -20,5 +20,11 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
 | [0013](0013-agents-md-come-memoria-di-progetto.md) | AGENTS.md come memoria di progetto | Accepted |
 | [0014](0014-headroom-standalone-per-la-lane-abbonamento.md) | Headroom standalone sulla sola lane abbonamento | Accepted — **eccezione** a 0001/0003 |
 | [0015](0015-test-funzionali-bloccanti.md) | I test funzionali possono fallire | Accepted |
+| [0016](0016-catena-auto-nel-gateway-non-claude-code-router.md) | Catena `auto` nel gateway; Claude Code Router non adottato | Accepted |
+| [0017](0017-manifest-componenti-e-validatore-unico.md) | Manifest dei componenti e validatore unico (`stack.py`) | Proposed |
+| [0018](0018-installazione-idempotente-e-rollback-debian-bazzite.md) | Installazione idempotente e rollback su Debian 13 e Bazzite | Proposed |
+| [0019](0019-pratiche-openhands-skill-per-ruolo-e-serena.md) | Pratiche OpenHands senza OpenHands; skill per ruolo; Serena per client | Proposed |
+| [0020](0020-dependabot-e-scala-di-autoaggiornamento.md) | Dependabot e scala di autoaggiornamento | Accepted (stadio 0) |
+| [0021](0021-misurare-prima-di-adottare-e-oh-my-openagent.md) | Misurare prima di adottare; oh-my-openagent come esperimento | Proposed |
 
 Template: `_template.md`. Regole in `CONTRIBUTING.md`.

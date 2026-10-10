@@ -1,0 +1,49 @@
+# Dependabot — ADR-0020. Propone, non rilascia: ogni PR passa da validate.yml
+# e la merge resta manuale (ADR-0010). "Abbastanza stabile" = cooldown: una
+# versione deve essere pubblica da N giorni prima che Dependabot la proponga,
+# cosi' le release ritirate o rotte nei primi giorni non arrivano mai qui.
+# Solo `default-days`: per github-actions, docker e docker-compose GitHub
+# RIFIUTA semver-*-days (lo schema SchemaStore li accetta, GitHub no). Le
+# major si governano con `groups` (escluse dai gruppi = PR singola, letta a parte).
+#
+# Cosa NON copre ancora (piano P1 in docs/PLAN-STACK-VALIDATION.md):
+#   - services/Dockerfile: i FROM usano ARG (${LITELLM_IMAGE_TAG}), che
+#     Dependabot non risolve. Diventa aggiornabile col pin a digest (debito #1).
+#   - vLLM: tag da variabile (${VLLM_TAG:-latest}), stesso problema.
+#   - tool uv/npm (Serena, graphify, headroom-ai, MCP via npx): nessun manifest
+#     versionato finche' non esiste stack/ (ADR-0017).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Rome }
+    cooldown: { default-days: 7 }
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message: { prefix: chore, include: scope }
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: docker-compose
+    directories: [/services, /services-biome]
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Rome }
+    cooldown: { default-days: 7 }
+    ignore:
+      # Una major di postgres non e' un aggiornamento d'immagine: e' una
+      # migrazione dei dati (pg_upgrade o dump/restore + TC-05). Mai via bot.
+      - dependency-name: postgres
+        update-types: [version-update:semver-major]
+    groups:
+      compose:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message: { prefix: chore, include: scope }
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: docker
+    directory: /services
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Rome }
+    cooldown: { default-days: 14 }
+    commit-message: { prefix: chore, include: scope }
+    open-pull-requests-limit: 2

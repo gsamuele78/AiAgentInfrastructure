@@ -45,7 +45,11 @@ Environment="OLLAMA_FLASH_ATTENTION=1"
 Environment="OLLAMA_KV_CACHE_TYPE=q8_0"          # KV cache: ~metà spazio
 Environment="OLLAMA_KEEP_ALIVE=2m"               # laptop
 Environment="OLLAMA_MAX_LOADED_MODELS=1"
+Environment="OLLAMA_CONTEXT_LENGTH=16384"         # = num_ctx della lane auto (ADR-0016)
 ```
+Senza `OLLAMA_CONTEXT_LENGTH` Ollama usa un contesto piccolo e **tronca in
+silenzio** i prompt degli agenti. Il valore deve coincidere con `num_ctx` del
+gruppo `auto` in `services/litellm_config.yaml` (`test-scripts.sh` lo verifica).
 ```bash
 sudo systemctl daemon-reload && sudo systemctl restart ollama
 ss -tlnp | grep 11434            # atteso 192.168.122.1:11434

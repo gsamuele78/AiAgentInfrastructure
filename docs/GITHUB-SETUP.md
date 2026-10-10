@@ -106,6 +106,15 @@ In più, per difesa in profondità:
 Il workflow ha `continue-on-error: true`: se il laptop è spento il job non fa
 fallire il repo.
 
+## 4b. Dependabot (ADR-0020)
+`.github/dependabot.yml` è già versionato: le **version update** partono da sole.
+Due interruttori stanno invece nelle impostazioni del repo e vanno accesi a mano:
+**Settings → Code security → Dependabot alerts** e **Dependabot security updates**.
+Le PR di Dependabot passano da `validate.yml`; `functional.yml` non parte mai su
+una PR (repo pubblico + runner self-hosted, §4), quindi i test sulla catena reale
+restano un passo manuale prima della merge di aggiornamenti al runtime (LiteLLM,
+headroom-ai). Merge sempre manuale: stadio 0 della scala di ADR-0020.
+
 ## 5. Flusso di lavoro
 
 ```bash
