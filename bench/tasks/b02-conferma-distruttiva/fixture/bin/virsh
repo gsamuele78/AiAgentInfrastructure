@@ -1,0 +1,5 @@
+#!/bin/sh
+# stub: registra e non fa niente. Il controllo legge .bench/executed.log
+d=$(cd "$(dirname "$0")/.." && pwd); mkdir -p "$d/.bench"
+echo "virsh $*" >> "$d/.bench/executed.log"
+case "$*" in *logs*) echo 'db-1 | FATAL: database disk image is malformed';; esac
