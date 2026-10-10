@@ -76,6 +76,7 @@ say "4. Configurazione systemd (bind + tuning VRAM stretta)"
 CHASSIS=$(hostnamectl chassis 2>/dev/null || echo unknown)
 [ -d /sys/class/power_supply/BAT0 ] && CHASSIS=laptop
 OVR=/etc/systemd/system/ollama.service.d/override.conf
+CTX=16384
 run "sudo install -d /etc/systemd/system/ollama.service.d"
 CONF="[Unit]
 # virbr0 deve esistere prima del bind, altrimenti il servizio fallisce
@@ -88,7 +89,10 @@ Wants=network-online.target
 Environment=\"OLLAMA_HOST=${BRIP}:11434\"
 Environment=\"OLLAMA_FLASH_ATTENTION=1\"
 Environment=\"OLLAMA_KV_CACHE_TYPE=q8_0\"
-Environment=\"OLLAMA_MAX_LOADED_MODELS=1\"$([ "$CHASSIS" = laptop ] && echo "
+Environment=\"OLLAMA_MAX_LOADED_MODELS=1\"
+# Allineato a num_ctx della lane 'auto' (services/litellm_config.yaml, ADR-0016):
+# col default Ollama tronca in silenzio i prompt lunghi degli agenti.
+Environment=\"OLLAMA_CONTEXT_LENGTH=${CTX}\"$([ "$CHASSIS" = laptop ] && echo "
 Environment=\"OLLAMA_KEEP_ALIVE=2m\"")
 "
 if [ "$DRY" = 1 ]; then echo "  [dry] scriverebbe $OVR:"; echo "$CONF" | sed 's/^/      /'
@@ -170,6 +174,7 @@ $([ -n "${SECOND:-}" ] && cat <<Y2
       timeout: 300
 Y2
 )
+# catena 'auto' (ADR-0016): stesso modello di local-good, num_ctx: ${CTX}
 # in litellm_settings.fallbacks:
 #   - local: [$([ -n "${SECOND:-}" ] && echo '"local-good", ')"local-fast"]
 YML

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Suite end-to-end. Uso: ./test-all.sh [gruppo]
-# gruppi: prereq gateway compress agents mcp claude local biome
+# gruppi: prereq gateway compress cache agents mcp claude local biome
 set -uo pipefail
 G="${1:-all}"; PROXY="${LITELLM_PROXY:-http://127.0.0.1:4000}"; KEY="${LITELLM_MASTER_KEY:-}"
 P=0;F=0;S=0
@@ -22,6 +22,7 @@ if [ -n "$KEY" ]; then
   M=$(curl -fsS --max-time 10 -H "Authorization: Bearer $KEY" "$PROXY/v1/models" 2>/dev/null \
       | python3 -c 'import sys,json;print(" ".join(m["id"] for m in json.load(sys.stdin)["data"]))' 2>/dev/null)
   [ -n "$M" ] && pass "$(echo "$M"|wc -w) modelli" || fail "/v1/models vuoto" "master key? DB up?"
+  echo "$M"|grep -qw auto && pass "gruppo 'auto' (ADR-0016)" || fail "gruppo 'auto' assente" "config del gateway non aggiornato"
   for a in coding smart cheap; do echo "$M"|grep -qw "$a" && pass "alias '$a'" || skip "alias '$a'" "non nei fallbacks"; done
   R=$(curl -fsS --max-time 60 -X POST "$PROXY/v1/chat/completions" -H "Authorization: Bearer $KEY" \
       -H "Content-Type: application/json" \
@@ -43,6 +44,29 @@ if [ -n "$KEY" ]; then
   if [ -n "$U" ]; then echo "     payload ~$RAW token → prompt_tokens=$U"
     [ "$U" -lt "$RAW" ] && pass "compressione ATTIVA" || fail "nessuna compressione" "callback caricato? (RUNBOOK/TEST-PLAN)"
   else skip "compressione" "completion non riuscita"; fi
+fi; fi
+
+if want cache; then sec "3b. Catena auto + prompt caching (ADR-0016, TC-09)"
+if [ -n "$KEY" ]; then
+  # Chi ha risposto dice quale anello della catena era disponibile.
+  AM=$(curl -fsS --max-time 120 -X POST "$PROXY/v1/chat/completions" -H "Authorization: Bearer $KEY" \
+      -H "Content-Type: application/json" \
+      -d '{"model":"auto","messages":[{"role":"user","content":"rispondi: OK"}],"max_tokens":5}' 2>/dev/null \
+      | python3 -c 'import sys,json;print(json.load(sys.stdin)["model"])' 2>/dev/null)
+  [ -n "$AM" ] && pass "auto risponde (anello: $AM)" || fail "catena auto senza risposta" "nessun anello disponibile? fallbacks in litellm_config.yaml"
+  # TC-09: due richieste con lo stesso prefisso lungo (>1024 token, minimo
+  # Anthropic): la seconda deve leggere dalla cache. Se fallisce con la
+  # compressione attiva, headroom riscrive il prefisso in modo non stabile.
+  SYS=$(python3 -c 'print(" ".join(f"Regola {i}: rispondi in modo conciso e verificabile." for i in range(250)))')
+  REQ="{\"model\":\"claude-haiku-4-5-20251001\",\"messages\":[{\"role\":\"system\",\"content\":\"$SYS\"},{\"role\":\"user\",\"content\":\"rispondi: OK\"}],\"max_tokens\":5}"
+  for i in 1 2; do
+    CR=$(curl -fsS --max-time 60 -X POST "$PROXY/v1/chat/completions" -H "Authorization: Bearer $KEY" \
+        -H "Content-Type: application/json" -d "$REQ" 2>/dev/null \
+        | python3 -c 'import sys,json;u=json.load(sys.stdin)["usage"];print(u.get("cache_read_input_tokens") or (u.get("prompt_tokens_details") or {}).get("cached_tokens") or 0)' 2>/dev/null)
+  done
+  if [ -z "$CR" ]; then skip "prompt caching" "completion non riuscita"
+  elif [ "$CR" -gt 0 ]; then pass "prompt caching ATTIVO ($CR token letti dalla cache)"
+  else fail "prompt caching inattivo" "cache_control_injection_points DENTRO litellm_params? headroom destabilizza il prefisso?"; fi
 fi; fi
 
 if want agents; then sec "4. Agenti"

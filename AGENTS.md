@@ -16,7 +16,8 @@ lane per dati sensibili, LLM locale e self-hosted BIOME.
 ```
 HOST (workstation)                                   VM KVM
 Claude Code ──abbonamento──► Anthropic       ┌────────────────────────┐
-opencode / OpenChamber ─┐                    │ litellm :4000          │
+(claude-gw ────────────┐ finestra esaurita)  │ litellm :4000          │
+opencode / OpenChamber ─┤  model=auto        │  auto: locale→Anth→OR  │
 Codex ──────────────────┼─127.0.0.1:4000────►│  └─[headroom callback] │
 Serena + graphify       │      (socat)       │ postgres (rete interna)│
 Ollama :11434 (virbr0) ─┘                    └────────────────────────┘
@@ -28,7 +29,7 @@ Ollama :11434 (virbr0) ─┘                    └─────────�
 1. `docs/PRD.md` — **soprattutto i non-goal (§3)**. Molte "buone idee"
    contraddicono un non-goal esplicito: in quel caso la risposta è no, o
    serve un nuovo PRD.
-2. `docs/adr/README.md` — le 12 decisioni già prese e il loro perché.
+2. `docs/adr/README.md` — le 16 decisioni già prese e il loro perché.
 3. `docs/TEST-PLAN.md` — cosa deve continuare a passare.
 
 ## Invarianti che NON vanno violate
@@ -48,6 +49,7 @@ CI fallisce.
 | 8 | **Una memoria per livello** | ADR-0007 |
 | 9 | Ogni script che modifica il sistema espone `--dry-run` | TC-08 |
 | 10 | `cleanup-host` verifica il gateway **prima** di pulire | ordine PSE |
+| 11 | Fallback locale→cloud **nel router di LiteLLM** (`auto`), mai un secondo router; l'abbonamento Claude **solo** da Claude Code | ADR-0016 |
 
 ## Vincolo dominante
 
@@ -68,6 +70,7 @@ attenzione continua.
 ./scripts/devops-audit.sh        # L4: best practice deploy
 ./scripts/audit-integration.py   # L3: configurazione dei client
 ./scripts/test-all.sh            # L5: catena reale (serve il gateway attivo)
+./scripts/test-all.sh cache      # TC-09: catena auto + prompt caching
 
 # deploy
 ./scripts/deploy-all.sh --dry-run     # 8 fasi con checkpoint
@@ -123,6 +126,9 @@ attenzione continua.
 | `die` sul primo prerequisito mancante | l'elenco completo e il comando d'installazione non vengono mai stampati | raccogli tutti i mancanti, poi esci una volta sola |
 | guard messo dopo un percorso distruttivo | `--destroy` da un sandbox stampava "VM rimossa" uscendo 0 | il guard va **prima** del ramo che distrugge |
 | `set -o pipefail` con un comando che deve fallire a sinistra della pipe | il pipeline torna 1 anche quando `grep` ha trovato | cattura l'output, poi filtralo |
+| `cache_control_injection_points` accanto a `litellm_params` | nessun errore, nessuna cache: la chiave viene ignorata | va **dentro** `litellm_params` (`test-scripts.sh` §4) |
+| Ollama col `num_ctx` di default | il prompt dell'agente viene troncato in silenzio, risposte senza senso | `num_ctx` esplicito + `OLLAMA_CONTEXT_LENGTH`, stesso valore |
+| "usiamo l'abbonamento anche da opencode" (CCR, import OAuth) | funziona finché l'account non viene sospeso | fuori termini: opencode usa le API key del gateway (ADR-0016) |
 | test comportamentale su un percorso che chiede conferma | verde per il motivo sbagliato (si ferma alla conferma, non al guard) | asserzione strutturale, o passa la conferma vera |
 
 ## Debito riconosciuto (non nasconderlo, non "risolverlo" di nascosto)

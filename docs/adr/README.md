@@ -20,5 +20,6 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
 | [0013](0013-agents-md-come-memoria-di-progetto.md) | AGENTS.md come memoria di progetto | Accepted |
 | [0014](0014-headroom-standalone-per-la-lane-abbonamento.md) | Headroom standalone sulla sola lane abbonamento | Accepted — **eccezione** a 0001/0003 |
 | [0015](0015-test-funzionali-bloccanti.md) | I test funzionali possono fallire | Accepted |
+| [0016](0016-catena-auto-nel-gateway-non-claude-code-router.md) | Catena `auto` nel gateway; Claude Code Router non adottato | Accepted |
 
 Template: `_template.md`. Regole in `CONTRIBUTING.md`.
