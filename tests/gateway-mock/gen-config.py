@@ -8,6 +8,7 @@ services/litellm_config.yaml, ma nessun provider reale e nessun segreto:
     falliscono come "Ollama spento", quindi il router fa fallback DAVVERO;
   - lane cloud -> mock_response "MOCK:<model_name>": la risposta dice chi ha
     risposto, cosi' il test verifica l'ordine della catena;
+  - --mask: aggiunge il callback di bench/secret-canary/secret_mask.py (ADR-0025 §6);
   - --fail NOME: quella lane cloud risponde InternalServerError (per provare
     il secondo anello);
   - callback headroom -> probe_callback.handler (registra le chiamate);
@@ -52,10 +53,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", default=str(Path(__file__).resolve().parents[2] / "services/litellm_config.yaml"))
     ap.add_argument("--fail", action="append", default=[])
+    ap.add_argument("--mask", action="store_true", help="aggiunge bench/secret-canary/secret_mask.handler")
     a = ap.parse_args()
     src = yaml.safe_load(Path(a.src).read_text())
     ls = dict(src.get("litellm_settings", {}))
-    ls["callbacks"] = ["probe_callback.handler"]
+    ls["callbacks"] = (["secret_mask.handler"] if a.mask else []) + ["probe_callback.handler"]
     ls["num_retries"] = 0
     ls["request_timeout"] = 30
     cfg = {

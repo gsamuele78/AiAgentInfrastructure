@@ -9,13 +9,15 @@ import os
 from litellm.integrations.custom_logger import CustomLogger
 
 LOG = os.environ.get("PROBE_CALLBACK_LOG", "/tmp/probe-callback.jsonl")
+CANARY = os.environ.get("PROBE_CANARY", "")  # se impostato: il valore e' arrivato fino al provider?
 
 
 class Probe(CustomLogger):
     def _w(self, kind, kwargs):
         with open(LOG, "a") as f:
             f.write(json.dumps({"event": kind, "model_group": (kwargs.get("litellm_params") or {}).get("metadata", {}).get("model_group"),
-                                "model": kwargs.get("model")}) + "\n")
+                                "model": kwargs.get("model"),
+                                "canary_seen": bool(CANARY) and CANARY in json.dumps(kwargs.get("messages"), default=str)}) + "\n")
 
     async def async_log_success_event(self, kwargs, response_obj, start_time, end_time):
         self._w("success", kwargs)

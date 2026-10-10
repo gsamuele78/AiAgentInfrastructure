@@ -11,6 +11,7 @@
 #    G4 disable_fallbacks: la richiesta fallisce invece di saltare (serve a bench/compliance)
 #    G5 prompt oltre max_input_tokens -> context_window_fallbacks, il locale non e' chiamato
 #    G6 i callback configurati vengono invocati (successo e fallimento)
+#    G8 bench/secret-canary/secret_mask.py: una chiave nel prompt non arriva al provider
 #    G7 bench/compliance/probe.py arriva in fondo contro il gateway (il mock accetta tutto:
 #       qui si prova l'impianto, non la conformita' dei provider)
 #  Cosa NON prova: provider veri, headroom vero, il DB. Restano L5 (test-all.sh).
@@ -37,7 +38,7 @@ else
     || { echo "installazione litellm[proxy]==$VER fallita"; exit 1; }
   LITELLM_BIN="$W/venv/bin/litellm"; PY="$W/venv/bin/python"
 fi
-cp "$HERE/probe_callback.py" "$W/"
+cp "$HERE/probe_callback.py" "$REPO/bench/secret-canary/secret_mask.py" "$W/"
 cd "$W" || exit 1   # LiteLLM importa probe_callback dalla directory corrente
 # porte libere scelte dal kernel: due run in parallelo non si parlano addosso
 free_port(){ "$PY" -c "import socket;s=socket.socket();s.bind(('127.0.0.1',0));print(s.getsockname()[1])"; }
@@ -104,6 +105,14 @@ else ko "G7 sonde di conformita' (rc=$rc)" "$out"; fi
 start $PB --fail "$FB1" || exit 1
 r=$(ask $PB "{\"model\":\"auto\",$HI}")
 [ "$r" = "MOCK:$FB2" ] && ok "G3 auto con $FB1 giu' -> $FB2" || ko "G3 secondo anello: atteso MOCK:$FB2, avuto $r"
+
+CAN="sk-or-v1-canary-$(date +%s)-0123456789"
+PC=$(free_port)
+OPENROUTER_API_KEY="$CAN" PROBE_CANARY="$CAN" start "$PC" --mask || exit 1
+ask "$PC" "{\"model\":\"claude-sonnet-4-6\",\"messages\":[{\"role\":\"user\",\"content\":\"il file dice OPENROUTER_API_KEY=$CAN\"}]}" >/dev/null
+waitcb "$W/cb-$PC.jsonl" 1
+if grep -q '"canary_seen": false' "$W/cb-$PC.jsonl" && ! grep -q '"canary_seen": true' "$W/cb-$PC.jsonl"; then ok "G8 chiave nel prompt mascherata prima del provider"
+else ko "G8 la chiave arriva al provider" "$(cat "$W/cb-$PC.jsonl" 2>/dev/null)"; fi
 
 echo -e "\n  gateway mock: \033[32m✓ $P\033[0m  \033[31m✗ $F\033[0m"
 [ "$F" = 0 ]
