@@ -22,7 +22,11 @@ backups/
 
 # --- Runtime / generati ---
 config.generated.yaml
-.serena/
+# .serena/project.yml e' versionato (ADR-0022); cache, memorie e override locali no.
+.serena/*
+!.serena/project.yml
+# stato di oh-my-openagent: solo esperimento isolato (ADR-0021), mai nel repo
+.omo/
 graph.json
 .graphify_learning.json
 __pycache__/

@@ -5,6 +5,7 @@
 | **Stato** | proposto · 2026-10-10 |
 | **ADR** | [0017](adr/0017-manifest-componenti-e-validatore-unico.md) manifest + validatore · [0018](adr/0018-installazione-idempotente-e-rollback-debian-bazzite.md) install/rollback Debian 13 + Bazzite · [0019](adr/0019-pratiche-openhands-skill-per-ruolo-e-serena.md) pratiche OpenHands, skill, Serena · [0020](adr/0020-dependabot-e-scala-di-autoaggiornamento.md) Dependabot · [0021](adr/0021-misurare-prima-di-adottare-e-oh-my-openagent.md) protocollo di misura, oh-my-openagent |
 | **Già fatto in questa PR** | P0 (sotto): fix Serena, `dependabot.yml`, ADR 0017–0021 |
+| **Step 0** | allineamento con Infra-Iam-PKI: [matrice](ALIGNMENT-INFRA-IAM-PKI.md), [ADR-0022](adr/0022-standard-condiviso-con-infra-iam-pki.md); [runbook del primo deploy](DEPLOY-RUNBOOK.md) |
 
 Richiesta di partenza: integrare Serena e le skill in modo fluido, ispirarsi
 alle pratiche di OpenHands, avere un validatore che verifichi ogni componente
@@ -62,11 +63,15 @@ mattpocock/skills, oh-my-openagent, Dependabot schema), non la documentazione.
 | A11 | Bazzite mai provato end-to-end; S1 (rpm-ostree) non testabile su runner GitHub | — | alta (rischio) | P2 + Fase C |
 | A12 | Nessuna misura di comportamento degli agenti né del guadagno dei cambiamenti | `TEST-PLAN.md` | alta | P0b, P6 |
 | A13 | oh-my-openagent: licenza SUL (non OSI), `anthropic-subscription`, fallback/memoria/MCP propri, telemetria attiva di default, 226 commit/60 gg | sorgente v5.1.29 | — | P7 (esperimento) |
-| A14 | Serena configurata solo per opencode, non per Claude Code | `clients/` | bassa | P4 |
+| A14 | Serena configurata solo per opencode, non per Claude Code | `clients/` | bassa | P1 (`.mcp.json`, ADR-0022) |
+| A15–A19 | Emersi dallo Step 0 (Serena `project.yml` senza `language_servers`, GPU da `nvidia-smi` in `deploy-all.sh`, `backup-db.sh` mai copiato nella VM, HC-01/HC-06 su BIOME) | [`ALIGNMENT-INFRA-IAM-PKI.md`](ALIGNMENT-INFRA-IAM-PKI.md) | fino ad alta | Step 0 / P1 |
 
 **Pre-requisiti** prima di P1: la PR #4 (catena `auto`, ADR-0016) unita; il
 gateway deployato almeno una volta (debito #6), altrimenti le baseline di P0b
-non hanno una catena reale su cui misurare.
+non hanno una catena reale su cui misurare. Il deploy si fa con
+[`DEPLOY-RUNBOOK.md`](DEPLOY-RUNBOOK.md): la sua scheda è la prima riga del registro.
+P1 non dipende dal deploy (sono pin, solo testo) e può procedere in parallelo;
+P0b sì.
 
 ---
 
@@ -241,6 +246,9 @@ cosa, il test deve diventare rosso), come già fatto per la catena `auto`.
 ### Registro baseline e misure (compilare)
 | Data | Pacchetto | Metrica | Baseline | Risultato | Run (n) | Esito gate |
 |---|---|---|---|---|---|---|
+| 2026-10-10 | Step 0 | tool di Serena che duplicano quelli di opencode (statico, dal sorgente 1.7.0) | `agent`: 5 (~750 token di descrizioni/turno, incl. una shell fuori dalle `permission`) | `ide`: 0 | statico | contesto `ide` confermato (ADR-0022) |
+| 2026-10-10 | Step 0 | regole HC di Infra-Iam-PKI coperte da un controllo con mutazione | 1 di 14 (HC-05) | 5 di 14 (HC-01, 03, 05, 08, 09); 2 non applicabili (10, 11); 3 adattate senza controllo generico (12–14); 3 rinviate (04, 06, 07); 1 respinta con motivo (02) | 10 mutazioni | ✔ |
+| 2026-10-10 | Step 0 | progetti in cui l'installer lascia un `.serena/project.yml` caricabile da Serena 1.7.0 | 0 (KeyError `language_servers`) | 1 di 1 provato (+ 2° run senza scritture) | 1 | ✔ |
 | | | | | | | |
 
 ### Registro prove Bazzite S1 (compilare)

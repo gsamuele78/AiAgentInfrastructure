@@ -111,6 +111,31 @@ LEAKS=$(grep -rInE '(@?\bjfs\b|\bermes\b|\.unibo\.it)' --exclude-dir=.git --excl
 [ -z "$LEAKS" ] && ok "nessun identificatore interno versionato (repo pubblico)" \
   || ko "identificatore interno nei file versionati" "$(echo "$LEAKS" | head -3)"
 
+# --- Regole HC di Infra-Iam-PKI portate qui (ADR-0022, docs/ALIGNMENT-INFRA-IAM-PKI.md).
+# L'ID HC resta nel commento: la corrispondenza fra i due repo deve essere cercabile.
+# HC-03 (adattata): ogni script dichiara `set -uo pipefail` (o -euo) prima del codice.
+# Qui `-e` NON e' obbligatorio: diversi script lo tolgono apposta per gestire gli
+# errori di run() a mano (trappola nota in AGENTS.md); -u e pipefail si'.
+NOSTRICT=""
+for f in scripts/*.sh; do
+  first=$(grep -m1 -E '^[[:space:]]*set[[:space:]]+-' "$f" || true)
+  printf '%s' "$first" | grep -qE 'set -e?uo pipefail' || NOSTRICT="$NOSTRICT $(basename "$f")"
+done
+[ -z "$NOSTRICT" ] && ok "HC-03: ogni script dichiara set -uo pipefail" \
+  || ko "HC-03: script senza 'set -uo pipefail':$NOSTRICT" "variabili non definite e pipe rotte passerebbero in silenzio"
+# HC-08: nessun .env vero, chiave o certificato privato tracciato da git.
+if git rev-parse --git-dir >/dev/null 2>&1; then
+  TRACKED=$(git ls-files | grep -E '(^|/)\.env$|(^|/)[^/]*\.env$|\.key$|\.pem$|(^|/)master\.key$|(^|/)forward\.env$' || true)
+  [ -z "$TRACKED" ] && ok "HC-08: nessun .env/chiave tracciato da git" \
+    || ko "HC-08: file segreti tracciati" "$(echo "$TRACKED" | head -3)"
+else
+  echo -e "  \033[2m–\033[0m HC-08 non verificabile (non e' un checkout git)"
+fi
+# HC-09: nessun servizio monta il socket di docker (controllo totale dell'host).
+SOCK=$(grep -nE '/var/run/docker\.sock|/run/docker\.sock' services/docker-compose.yml services-biome/docker-compose.yml || true)
+[ -z "$SOCK" ] && ok "HC-09: nessun servizio monta docker.sock" \
+  || ko "HC-09: docker.sock montato in un compose" "$SOCK"
+
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
 # Un controllo che fallisce per motivi ambientali e' peggio di un controllo assente.
@@ -159,6 +184,28 @@ grep -q '"127.0.0.1:8000:8000"' services-biome/docker-compose.yml \
   && ok "vLLM su loopback (solo nginx lo espone)" || ko "vLLM non su loopback"
 # config montate read-only
 grep -q ':ro' services/docker-compose.yml && ok "config montata :ro" || ko "config non :ro"
+# HC-01: ogni servizio ha limiti di memoria E cpu (niente OOM a cascata nella VM da 4 GB).
+if [ "$HAVE_YAML" = 1 ]; then
+  python3 - <<'PYX' && ok "HC-01: ogni servizio ha deploy.resources.limits (memory e cpus)" || ko "HC-01: servizio senza limiti di risorse"
+import sys, yaml
+# Eccezione DICHIARATA: vLLM sul server BIOME condivide la macchina coi workload di
+# ricerca, ma un limite di RAM scelto senza misure lo ucciderebbe al caricamento
+# del modello. Va dimensionato sul server reale (docs/ALIGNMENT-INFRA-IAM-PKI.md).
+EXEMPT = {"services-biome/docker-compose.yml:vllm"}
+bad = []
+for f in ("services/docker-compose.yml", "services-biome/docker-compose.yml"):
+    for name, svc in (yaml.safe_load(open(f)).get("services") or {}).items():
+        if f"{f}:{name}" in EXEMPT:
+            continue
+        lim = ((svc.get("deploy") or {}).get("resources") or {}).get("limits") or {}
+        if not (lim.get("memory") and lim.get("cpus")):
+            bad.append(f"{f}:{name}")
+if bad:
+    print("    " + ", ".join(bad)); sys.exit(1)
+PYX
+else
+  echo -e "  \033[2m–\033[0m HC-01 non verificabile (pyyaml assente)"
+fi
 
 # ADR-0015: un job con `continue-on-error: true` gira ma non puo' fallire.
 # E' come non averlo. `continue-on-error` a livello di STEP resta lecito.
@@ -186,7 +233,7 @@ done
 # La GPU si cerca sul BUS PCI, non nella presenza di nvidia-smi: dedurre
 # l'hardware da un binario mente su OS atomico senza driver proprietari
 # (Bazzite/Silverblue), a dGPU spenta (Optimus) e dentro un container.
-for f in scripts/detect-hardware.sh scripts/setup-ollama.sh; do
+for f in scripts/detect-hardware.sh scripts/setup-ollama.sh scripts/deploy-all.sh; do
   b=$(basename "$f")
   grep -q 'nvidia_pci_devices' "$f" \
     && ok "$b rileva la GPU dal bus PCI, non da nvidia-smi" \
@@ -367,12 +414,44 @@ grep -qE '^[[:space:]]*export[[:space:]]+ANTHROPIC_' clients/shell-env.sh \
 grep -rn 'ide-assistant' clients/ 2>/dev/null \
   && ko "client con --context ide-assistant" "deprecato: Serena lo mappa su claude-code; usa 'ide'" \
   || ok "Serena: nessun contesto deprecato nei client"
+MEMTOOLS_ALL="write_memory read_memory list_memories delete_memory rename_memory edit_memory onboarding"
 MISSING_MEM=""
-for t in write_memory read_memory list_memories delete_memory rename_memory edit_memory onboarding; do
-  grep -q "excluded_tools:.*\b$t\b" scripts/stack-selective-install.sh || MISSING_MEM="$MISSING_MEM $t"
+for t in $MEMTOOLS_ALL; do
+  grep -qE "^MEMTOOLS=\".*\b$t\b" scripts/stack-selective-install.sh || MISSING_MEM="$MISSING_MEM $t"
 done
-[ -z "$MISSING_MEM" ] && ok "Serena: tutti i tool di memoria esclusi (ADR-0007)" \
-  || ko "Serena: tool di memoria non esclusi:$MISSING_MEM" "una memoria per livello"
+[ -z "$MISSING_MEM" ] && ok "Serena: l'installer esclude tutti i tool di memoria (ADR-0007)" \
+  || ko "Serena: tool di memoria non esclusi dall'installer:$MISSING_MEM" "una memoria per livello"
+# serena-agent 1.7.0 esige `language_servers` in project.yml: un file scritto a
+# mano senza quel campo fa fallire il caricamento (KeyError). L'installer deve
+# farlo generare a Serena, mai scriverlo con un heredoc.
+if grep -qE 'cat[[:space:]]*>[[:space:]]*"?(\$\{?SPY\}?|[^ ]*project\.yml)' scripts/stack-selective-install.sh; then
+  ko "l'installer scrive project.yml a mano" "Serena 1.7.0: KeyError 'language_servers'; usa 'serena project create'"
+else
+  ok "l'installer fa generare project.yml a Serena (niente heredoc)"
+fi
+# .serena/project.yml del repo (ADR-0022): completo e con la memoria esclusa.
+if [ "$HAVE_YAML" = 1 ]; then
+  MEMTOOLS_ALL="$MEMTOOLS_ALL" python3 - <<'PYX' && ok ".serena/project.yml: language_servers presenti, 7 tool di memoria esclusi" || ko ".serena/project.yml incompleto o memoria non esclusa" "ADR-0007/0022"
+import os, sys, yaml
+d = yaml.safe_load(open(".serena/project.yml"))
+miss = set(os.environ["MEMTOOLS_ALL"].split()) - set(d.get("excluded_tools") or [])
+ok = d.get("language_servers") and d.get("project_name") and not miss
+if not ok: print("    mancano:", sorted(miss) or "language_servers/project_name")
+sys.exit(0 if ok else 1)
+PYX
+else
+  echo -e "  \033[2m–\033[0m .serena/project.yml non verificabile (pyyaml assente)"
+fi
+# Claude Code nel repo: il tool Read non deve poter aprire .env e chiavi
+# (permissions.deny, come in Infra-Iam-PKI). Non ferma `cat` da Bash: e' una cintura.
+python3 - <<'PYX' && ok ".claude/settings.json nega la lettura di .env, chiavi e backup" || ko ".claude/settings.json senza deny sui segreti" "ADR-0022"
+import json, sys
+deny = set(json.load(open(".claude/settings.json")).get("permissions", {}).get("deny", []))
+need = {"Read(**/.env)", "Read(**/*.key)", "Read(**/*.pem)", "Read(**/backups/**)", "Read(~/.config/litellm/**)"}
+miss = need - deny
+if miss: print("    mancano:", sorted(miss))
+sys.exit(1 if miss else 0)
+PYX
 
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do

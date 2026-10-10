@@ -6,6 +6,10 @@
 Percorso guidato: `./scripts/deploy-all.sh` (8 fasi con checkpoint).
 Sotto, la versione manuale.
 
+**Primo deploy reale**: segui [`DEPLOY-RUNBOOK.md`](DEPLOY-RUNBOOK.md) — stesso
+ordine, più snapshot prima/dopo i passi rischiosi, un criterio di superamento
+per passo e la scheda delle misure che serve al piano (P0b).
+
 ## Fase 0 — Hardware
 ```bash
 ./scripts/detect-hardware.sh --emit-config   # sizing VM + modello locale
