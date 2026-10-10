@@ -21,7 +21,9 @@ passo.
 
 ### Informazioni mancanti (cambiano il piano se la risposta è diversa)
 1. **Variante di Bazzite** (desktop, `-nvidia`, `-deck`, GNOME/KDE): decide se il
-   driver NVIDIA è già nell'immagine o serve un rebase.
+   driver NVIDIA è già nell'immagine o serve un rebase. *Risposta 2026-10-10:*
+   Bazzite 44, KDE (Kinoite), `VARIANT_ID=bazzite-dx-nvidia`: driver
+   nell'immagine. È la fixture `tests/platform/fixtures/os-release.bazzite-nvidia`.
 2. **Debian 13 è l'host o solo la VM?** Oggi la VM è Debian per costruzione;
    l'host di riferimento del PRD è il laptop. Il piano assume **entrambi gli
    host possibili**.

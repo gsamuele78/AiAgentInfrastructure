@@ -1,11 +1,25 @@
-# Approssimazione dell'os-release di Bazzite (desktop KDE, senza -nvidia).
-# Sostituirla con il file vero dell'host quando c'e' (PLAN-STACK-VALIDATION §0).
-# Le decisioni NON dipendono da questi nomi ma da ostree, ujust e dal driver
-# sul bus PCI: un nome sbagliato qui non cambia l'esito di TC-13.
+# Derivato dall'os-release reale (os-release.bazzite-nvidia): stessa
+# immagine senza driver NVIDIA. Cambiano solo VARIANT_ID e IMAGE_ID.
 NAME="Bazzite"
-VERSION="42.20250901.0 (Kinoite)"
+VERSION="44.20261002.0 (Kinoite)"
+RELEASE_TYPE=stable
 ID=bazzite
 ID_LIKE="fedora"
-VERSION_ID=42
+VERSION_ID=44
+VERSION_CODENAME="Kinoite"
+PRETTY_NAME="Bazzite"
+ANSI_COLOR="0;38;2;138;43;226"
+LOGO=bazzite-logo
+CPE_NAME="cpe:/o:universal-blue:bazzite:44"
+DEFAULT_HOSTNAME="bazzite"
+HOME_URL="https://bazzite.gg"
+DOCUMENTATION_URL="https://docs.bazzite.gg"
+SUPPORT_URL="https://discord.bazzite.gg"
+BUG_REPORT_URL="https://github.com/ublue-os/bazzite/issues/"
+SUPPORT_END=2027-05-19
+VARIANT="Kinoite"
 VARIANT_ID=bazzite
-PRETTY_NAME="Bazzite 42 (FROM Fedora Kinoite)"
+OSTREE_VERSION='44.20261002.0'
+BUILD_ID="Stable (F44.20261002)"
+BOOTLOADER_NAME="Bazzite Stable (F44.20261002)"
+IMAGE_ID="bazzite-44.20261002"

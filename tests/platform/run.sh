@@ -125,7 +125,9 @@ decide user-tools apply
 sec "5. Bazzite -nvidia: driver nell'immagine"
 SCEN=bazzite-nvidia; mk bazzite-nvidia atomic ublue gpu=nvidia smi=8192
 facts
-fact 'f["os_variant_id"]' '"bazzite-nvidia"'
+fact 'f["os_variant_id"]' '"bazzite-dx-nvidia"'
+fact 'f["os_version_id"]' '"44"'
+fact 'f["os_family"]' '"ostree"'
 fact 'f["vram_mb"]' 8192
 decide gpu-driver skip
 

@@ -75,9 +75,9 @@ driver), Bazzite, Bazzite-nvidia, Flatpak, toolbox, Fedora, Silverblue, VFIO.
 Verifica i fatti di `detect-hardware.sh --json` e le scelte di
 `scripts/lib/platform.sh`; **nessuna azione S1 automatica** (su OS atomico
 nemmeno con `ALLOW_S1=1`), `svc_render` idempotente e annullabile dal journal.
-Ogni controllo ha la sua mutazione. Limite: l'os-release di Bazzite è
-un'approssimazione (le decisioni non dipendono dai nomi), rpm-ostree e reboot
-non sono provati.
+Ogni controllo ha la sua mutazione. L'os-release di Bazzite-nvidia è quello
+reale dell'host (F44, KDE, `bazzite-dx-nvidia`); quello senza driver ne è
+derivato. Limite: rpm-ostree e reboot non sono provati.
 
 **TC-10…TC-17 (pianificati, salvo TC-13)** — idempotenza, rollback,
 skill uniche, eval L6, drift di versione, upgrade con rollback automatico: vedi
