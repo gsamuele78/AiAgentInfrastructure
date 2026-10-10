@@ -38,7 +38,7 @@
     "ctx7":   { "type": "local", "command": ["npx","-y","@upstash/context7-mcp@4.1.1"], "environment": { "CONTEXT7_API_KEY": "example-key" } },
     "crawl":  { "type": "local", "command": ["npx","-y","firecrawl-mcp@3.27.3"], "environment": { "FIRECRAWL_API_KEY": "example-key" }, "enabled": true, "timeout": 60000 },
     // build locale da git, fuori da Dependabot: componente non pinnato (stack/components.toml).
-    "fetch":  { "type": "local", "command": ["node","{env:HOME}/.local/share/mcp/fetch-mcp/dist/index.js"], "environment": {}, "enabled": true, "timeout": 60000 },
+    "fetch":  { "type": "local", "command": ["npx","-y","mcp-fetch-server@1.1.2"], "environment": {}, "enabled": true, "timeout": 60000 },
     "tavily": { "type": "local", "command": ["npx","-y","tavily-mcp@0.2.22"], "environment": { "TAVILY_API_KEY": "example-key" }, "enabled": false }
   }
 }

@@ -40,16 +40,14 @@ echo "sk-..." > ~/.config/litellm/master.key && chmod 600 ~/.config/litellm/mast
 | `fs` | `@modelcontextprotocol/server-filesystem` | Node | — |
 | `ctx7` | `@upstash/context7-mcp` | Node | `CONTEXT7_API_KEY` |
 | `crawl` | `firecrawl-mcp` | Node | `FIRECRAWL_API_KEY` |
-| `fetch` | build locale `zcaceres/fetch-mcp` | Node + build | — |
+| `fetch` | `mcp-fetch-server` (repo `zcaceres/fetch-mcp`) | Node | — |
 | `tavily` | `tavily-mcp` | Node | `TAVILY_API_KEY` |
 
 ```bash
 # Serena NON si installa: i client la avviano con `uvx --from serena-agent==<pin>`
 # (pin in stack/requirements-tools.txt, ADR-0022). Basta avere uv/uvx.
 uv tool install "graphifyy==$(sed -n 's/^graphifyy==//p' stack/requirements-tools.txt)" && graphify install   # occasionale
-# fetch-mcp va compilato:
-git clone https://github.com/zcaceres/fetch-mcp ~/Documents/Cline/MCP/github.com/zcaceres/fetch-mcp
-cd ~/Documents/Cline/MCP/github.com/zcaceres/fetch-mcp && npm install && npm run build
+# fetch non si compila piu': e' il pacchetto npm mcp-fetch-server, pinnato come gli altri MCP.
 ```
 Regole (già applicate in `clients/opencode.jsonc`): **alias corti** (i nomi tool
 diventano `alias_toolname`; alias lunghi causano errori di tool-calling),

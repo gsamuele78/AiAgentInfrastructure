@@ -37,7 +37,10 @@ negative. In sintesi:
 > - upstream **solo** `api.anthropic.com`, mai OpenRouter (era il bug di `CURRENT-STATE.md`);
 > - **nessun altro client** su `:8787`: opencode, OpenChamber e Codex restano sul gateway;
 > - i template in `clients/` non contengono `:8787` — la variante si configura sulla macchina;
-> - pulisci l'host con `KEEP_HEADROOM=1 ./scripts/cleanup-host.sh`, altrimenti la spegni.
+> - pulisci l'host con `KEEP_HEADROOM=1 ./scripts/cleanup-host.sh`, altrimenti la spegni;
+> - versione **uguale al callback** del gateway (un solo pin, aggiornato da Dependabot):
+>   `uv tool install --force "headroom-ai==$(sed -n 's/^headroom-ai==//p' services/requirements-callback.txt)"`.
+>   `audit-integration.py` §6 avvisa se l'host è rimasto indietro.
 
 **(C) Abbonamento via LiteLLM** — `BASE_URL=:4000`, `ANTHROPIC_MODEL=anthropic-claude`,
 `ANTHROPIC_CUSTOM_HEADERS="x-litellm-api-key: Bearer sk-..."`, con

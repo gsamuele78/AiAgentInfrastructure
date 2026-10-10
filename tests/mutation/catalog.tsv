@@ -41,6 +41,9 @@ TC-13 pkg_add senza journal	✗	tests/platform/run.sh	sed -i '/senza journal_beg
 TC-13 svc_render riscrive sempre	✗	tests/platform/run.sh	sed -i 's/\[ "$new" = "$old" \] \&\& { echo "  $dst: invariato"/false \&\& { echo "  $dst: invariato"/' scripts/lib/platform.sh
 TC-13 driver deciso da un sandbox	✗	tests/platform/run.sh	sed -i '/sandbox $sb: lo stato del driver si vede solo/d' scripts/lib/platform.sh
 TC-13 json booleano come stringa	✗	tests/platform/run.sh	sed -i 's/BOOL = {"atomic", "ublue",/BOOL = {"atomic",/' scripts/detect-hardware.sh
+P1 fetch torna alla build locale	pin senza consumatore	./scripts/test-scripts.sh	sed -i 's|"npx","-y","mcp-fetch-server@1.1.2"|"node","{env:HOME}/.local/share/mcp/fetch-mcp/dist/index.js"|' clients/opencode.jsonc
+P1 bump fetch solo in package.json	pin dei client	./scripts/test-scripts.sh	sed -i 's|"mcp-fetch-server": "1.1.2"|"mcp-fetch-server": "1.2.0"|' stack/package.json
+P1 audit ignora la deriva di headroom	deriva di headroom	./scripts/test-scripts.sh	sed -i 's/    else: L("WARN",f"headroom sull/    else: L("PASS",f"headroom sull/' scripts/audit-integration.py
 ADR-0024 sudo nello strato S3	ADR-0024	./scripts/test-scripts.sh	sed -i 's|  install -m 755 "$UT_CACHE/$f" "$dest"|  sudo install -m 755 "$UT_CACHE/$f" "$dest"|' scripts/lib/user-tools.sh
 ADR-0024 postinstall permessi a tutti	ADR-0024	./scripts/test-scripts.sh	sed -i 's|allow_builds = \["opencode-ai"\]|npm_args = "--ignore-scripts=false"|' scripts/lib/user-tools.sh
 ADR-0024 ripiego silenzioso	ADR-0024	./scripts/test-scripts.sh	sed -i '/RIPIEGO sullo script/d' scripts/install-user-tools.sh

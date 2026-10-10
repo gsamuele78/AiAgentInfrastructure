@@ -10,6 +10,7 @@
     "@upstash/context7-mcp": "4.1.1",
     "ecc-agentshield": "1.6.0",
     "firecrawl-mcp": "3.27.3",
+    "mcp-fetch-server": "1.1.2",
     "opencode-ai": "1.18.34",
     "skills": "1.7.0",
     "tavily-mcp": "0.2.22"

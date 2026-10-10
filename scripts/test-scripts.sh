@@ -208,6 +208,30 @@ tr = sum(1 for c in comps if c["tracked"])
 print(f"    misura P1: {tr}/{len(comps)} componenti con pin letto da Dependabot ({100*tr//len(comps)}%)")
 if bad: print("    " + "\n    ".join(bad)); sys.exit(1)
 PYX
+  # Un pin che nessuno usa e' falso: Dependabot lo aggiorna e non cambia niente.
+  # Ogni pacchetto di stack/package.json deve comparire in un client o in uno script.
+  python3 - <<'PYX' && ok "P1: ogni pin di stack/package.json ha un consumatore" || ko "P1: pin senza consumatore in stack/package.json" "un client o uno script deve usarlo (npx -y pkg@versione, pin_npm pkg, .get(\"pkg\"))"
+import json, pathlib, sys
+npm = json.loads(pathlib.Path("stack/package.json").read_text())["dependencies"]
+users = "".join(p.read_text(errors="ignore") for p in
+                [*pathlib.Path("clients").iterdir(), pathlib.Path(".mcp.json"), *pathlib.Path("scripts").rglob("*.sh")] if p.is_file())
+# forme: "pkg@x.y.z" (client), pin_npm pkg (installer), .get("pkg" (lib/user-tools.sh)
+bad = [p for p in npm if not any(f in users for f in (f'"{p}@', f"pin_npm {p}", f'.get("{p}"'))]
+if bad: print("    " + "\n    ".join(bad)); sys.exit(1)
+PYX
+  # headroom sull'host ha il pin del callback (ADR-0014, components.toml):
+  # audit-integration.py deve vedere la deriva. Comportamento, con un headroom finto.
+  HRSTUB=$(mktemp -d); HRPIN=$(sed -n 's/^headroom-ai==//p' services/requirements-callback.txt)
+  printf '#!/bin/sh\necho "headroom %s"\n' "$HRPIN" > "$HRSTUB/headroom"; chmod +x "$HRSTUB/headroom"
+  hr_same=$(PATH="$HRSTUB:$PATH" python3 scripts/audit-integration.py 2>&1 | grep "headroom sull'host")
+  printf '#!/bin/sh\necho "headroom 0.0.1"\n' > "$HRSTUB/headroom"
+  hr_diff=$(PATH="$HRSTUB:$PATH" python3 scripts/audit-integration.py 2>&1 | grep "headroom sull'host")
+  rm -rf "$HRSTUB"
+  if [[ "$hr_same" == *PASS* ]] && [[ "$hr_diff" == *WARN*"!= pin $HRPIN"* ]]; then
+    ok "P1: audit-integration.py segnala headroom sull'host diverso dal pin del callback"
+  else
+    ko "P1: deriva di headroom sull'host non segnalata" "audit-integration.py §6 (pin in services/requirements-callback.txt)"
+  fi
 else
   echo -e "  \033[2m–\033[0m controlli P1 saltati (serve python >= 3.11 per tomllib)"
 fi
