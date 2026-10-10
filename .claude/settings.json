@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "deny": [
+      "Read(**/.env)",
+      "Read(**/*.env)",
+      "Read(**/forward.env)",
+      "Read(**/master.key)",
+      "Read(**/*.key)",
+      "Read(**/*.pem)",
+      "Read(**/*.crt)",
+      "Read(**/certs/**)",
+      "Read(**/secrets/**)",
+      "Read(**/backups/**)",
+      "Read(**/*.sql.gz)",
+      "Read(~/.config/litellm/**)",
+      "Read(~/.claude/.credentials.json)",
+      "Edit(**/.env)",
+      "Edit(~/.config/litellm/**)"
+    ]
+  }
+}

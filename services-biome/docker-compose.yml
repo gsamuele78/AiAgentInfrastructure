@@ -65,6 +65,10 @@ services:
       vllm: { condition: service_healthy }
     network_mode: "service:vllm"        # parla a vLLM su 127.0.0.1
     security_opt: ["no-new-privileges:true"]
+    # HC-01 (ADR-0022): un reverse proxy TLS non ha bisogno di piu' di cosi'.
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
     logging:
       driver: local
       options: { max-size: "20m", max-file: "3" }

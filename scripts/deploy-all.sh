@@ -85,7 +85,10 @@ run "grep -qF 'clients/shell-env.sh' ~/.bashrc 2>/dev/null || echo 'source $HERE
 ask "Fatto?" && ok "dual-auth pronta" || warn "da completare"; fi
 
 if ph 6; then say "FASE 6 — LLM locale (opzionale)"
-if command -v nvidia-smi >/dev/null 2>&1; then
+# La GPU si cerca sul bus PCI, non con `command -v nvidia-smi`: su Bazzite senza
+# immagine -nvidia, o a dGPU spenta, il binario manca ma la GPU c'e' -- e
+# setup-ollama.sh sa dire cosa installare (nvidia_missing_hint).
+if [ -n "$(nvidia_pci_devices)" ]; then
   run "./detect-hardware.sh --emit-config"
   ask "Installare e configurare Ollama ora?" \
     && run "./setup-ollama.sh" || warn saltata
@@ -97,6 +100,7 @@ run "./devops-audit.sh || true"; run "./audit-integration.py || true"; run "./te
 if ph 8; then say "FASE 8 — Baseline, backup e TEST del restore"
 cat <<'X'
   virsh -c qemu:///system snapshot-create-as llm-vm baseline --description "stack ok"
+  scp scripts/backup-db.sh $VM_USER@<VM_IP>:~/llm-services/   # dalla root del repo: non sta in services/
   ssh $VM_USER@<VM_IP> 'cd ~/llm-services && ./backup-db.sh'
   ./restore-test.sh          # TC-05: OBBLIGATORIO almeno una volta
 

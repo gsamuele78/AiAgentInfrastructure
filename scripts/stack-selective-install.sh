@@ -30,17 +30,28 @@ PROJ="${ARGS[0]:-$PWD}"
 
 say "1) Serena locale (semantic-only, memory OFF)"
 run "uv tool install -p 3.13 'serena-agent@latest' --prerelease=allow || echo '  (gia installata?)'"
-run "mkdir -p '$PROJ/.serena'"; bak "$PROJ/.serena/project.yml"
-if [ "$DRY" = 1 ]; then echo "  [dry] scriverebbe $PROJ/.serena/project.yml (excluded_tools: memory)"
-else
-cat > "$PROJ/.serena/project.yml" <<'YML'
 # Tutti i tool che leggono/scrivono la memoria di Serena (ADR-0007), compresi
 # quelli aggiunti dopo la prima stesura: rename/edit_memory e onboarding (che
 # scrive memorie). Nomi = classi *Tool in snake_case (serena/tools/memory_tools.py).
-excluded_tools: [write_memory, read_memory, list_memories, delete_memory, rename_memory, edit_memory, onboarding]
-record_tool_usage_stats: false
-YML
-echo "  .serena/project.yml in $PROJ"
+MEMTOOLS="write_memory read_memory list_memories delete_memory rename_memory edit_memory onboarding"
+# NON si scrive un project.yml a mano: serena-agent 1.7.0 esige `language_servers`
+# (FIELDS_WITHOUT_DEFAULTS) e il vecchio file di due righe faceva fallire il
+# caricamento del progetto con KeyError. Lo genera Serena (rileva i linguaggi);
+# qui si sostituisce solo la riga `excluded_tools: []` del template.
+# `< <(yes)` e non `yes |`: con pipefail, il SIGPIPE di yes renderebbe falsa la pipeline.
+SPY="$PROJ/.serena/project.yml"
+if [ -f "$SPY" ]; then
+  MISS=""; for t in $MEMTOOLS; do grep -qE "^[[:space:]]*-[[:space:]]*${t}[[:space:]]*$|excluded_tools:.*\\b${t}\\b" "$SPY" || MISS="$MISS $t"; done
+  # Idempotente: un file esistente non si sovrascrive (niente .bak), si segnala.
+  [ -z "$MISS" ] && echo "  $SPY: gia' conforme, nessuna scrittura" \
+    || echo "  ⚠️ $SPY non esclude:$MISS -> aggiungili a excluded_tools (ADR-0007)"
+elif [ "$DRY" = 1 ]; then
+  echo "  [dry] serena project create '$PROJ' + excluded_tools: [${MEMTOOLS// /, }]"
+else
+  serena project create "$PROJ" < <(yes) >/dev/null || { echo "  ✗ serena project create fallito"; exit 1; }
+  grep -q '^excluded_tools: \[\]$' "$SPY" || { echo "  ✗ template Serena cambiato: excluded_tools non trovato in $SPY"; exit 1; }
+  sed -i "s/^excluded_tools: \[\]\$/excluded_tools: [${MEMTOOLS// /, }]/" "$SPY"
+  echo "  $SPY creato (memoria esclusa)"
 fi
 say "1b) graphify (mappa d'insieme, occasionale)"
 [ "${SKIP_GRAPHIFY:-0}" = 1 ] || { run "uv tool install graphifyy || true"; run "graphify install || true"; }
