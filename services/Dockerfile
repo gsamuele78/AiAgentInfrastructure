@@ -8,13 +8,15 @@
 #  non e' mai passata: si porta uv da un'immagine dedicata e si installa
 #  esplicitamente DENTRO il venv, che e' l'unico python che il proxy usa.
 # ============================================================
-ARG LITELLM_IMAGE_TAG=main-stable
-# Stessa versione che usa il Dockerfile upstream di LiteLLM.
-ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.11.7
+# FROM letterali, tag + digest (debito #1, ADR-0020): Dependabot (docker) li legge
+# e propone gli aggiornamenti; un ARG nel FROM non lo vedrebbe. Il digest e'
+# l'indice multi-arch: lo stesso tag non puo' cambiare contenuto sotto i piedi.
+# v1.104.2 e' cio' a cui puntava `main-stable` il 2026-10-10: il pin congela lo
+# stato di oggi, il cooldown di 14 giorni vale per gli aggiornamenti successivi.
+# uv: stessa versione che usa il Dockerfile upstream di LiteLLM.
+FROM ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a AS uvbin
 
-FROM ${UV_IMAGE} AS uvbin
-
-FROM ghcr.io/berriai/litellm-database:${LITELLM_IMAGE_TAG}
+FROM ghcr.io/berriai/litellm-database:v1.104.2@sha256:5a9ff0fd7177372f2ccd8949cb121f67e281f4d13d026af51f9c096c0626f50a
 
 # Extra di headroom-ai. Default: vuoto = solo il core.
 # Il callback importa litellm, httpx e moduli interni di headroom: il core basta.
@@ -24,7 +26,11 @@ FROM ghcr.io/berriai/litellm-database:${LITELLM_IMAGE_TAG}
 ARG HEADROOM_EXTRAS=""
 
 COPY --from=uvbin /uv /usr/local/bin/uv
-RUN uv pip install --no-cache --python /app/.venv/bin/python "headroom-ai${HEADROOM_EXTRAS}"
+# La versione viene da requirements-callback.txt (vincolo, -c): gli extra restano
+# scelti da HEADROOM_EXTRAS, ma headroom-ai non puo' salire da solo.
+COPY requirements-callback.txt /tmp/requirements-callback.txt
+RUN uv pip install --no-cache --python /app/.venv/bin/python \
+      -c /tmp/requirements-callback.txt "headroom-ai${HEADROOM_EXTRAS}"
 
 # Gate fail-fast: se il callback non importa, la build fallisce QUI, non in produzione.
 RUN /app/.venv/bin/python -c "from headroom.integrations.litellm_callback import HeadroomCallback; print('HeadroomCallback OK')"

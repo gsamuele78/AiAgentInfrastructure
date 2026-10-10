@@ -41,8 +41,9 @@ echo "sk-..." > ~/.config/litellm/master.key && chmod 600 ~/.config/litellm/mast
 | `tavily` | `tavily-mcp` | Node | `TAVILY_API_KEY` |
 
 ```bash
-uv tool install -p 3.13 "serena-agent@latest" --prerelease=allow
-uv tool install graphifyy && graphify install     # occasionale, è una skill
+# Serena NON si installa: i client la avviano con `uvx --from serena-agent==<pin>`
+# (pin in stack/requirements-tools.txt, ADR-0022). Basta avere uv/uvx.
+uv tool install "graphifyy==$(sed -n 's/^graphifyy==//p' stack/requirements-tools.txt)" && graphify install   # occasionale
 # fetch-mcp va compilato:
 git clone https://github.com/zcaceres/fetch-mcp ~/Documents/Cline/MCP/github.com/zcaceres/fetch-mcp
 cd ~/Documents/Cline/MCP/github.com/zcaceres/fetch-mcp && npm install && npm run build
@@ -50,7 +51,10 @@ cd ~/Documents/Cline/MCP/github.com/zcaceres/fetch-mcp && npm install && npm run
 Regole (già applicate in `clients/opencode.jsonc`): **alias corti** (i nomi tool
 diventano `alias_toolname`; alias lunghi causano errori di tool-calling),
 `enabled: false` su quelli non usati ogni sessione, Serena con
-`--context ide` (`ide-assistant` è deprecato e Serena lo rimappa su `claude-code`), **una sola** memory. Verifica con `/mcp` nella TUI.
+`--context ide` (`ide-assistant` è deprecato e Serena lo rimappa su `claude-code`;
+`agent` esporrebbe una shell fuori dalle `permission`, ADR-0022), **una sola** memory.
+Versioni **pinnate** e letterali (`npx -y pkg@x.y.z`): la fonte per Dependabot è
+`stack/package.json`, e `test-scripts.sh` §3 verifica che coincidano. Verifica con `/mcp` nella TUI.
 
 ## 5. OpenChamber
 Prerequisito: opencode. Su Linux: **web/PWA** o estensione (il desktop è solo macOS).

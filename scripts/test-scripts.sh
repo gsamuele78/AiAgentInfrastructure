@@ -136,6 +136,82 @@ SOCK=$(grep -nE '/var/run/docker\.sock|/run/docker\.sock' services/docker-compos
 [ -z "$SOCK" ] && ok "HC-09: nessun servizio monta docker.sock" \
   || ko "HC-09: docker.sock montato in un compose" "$SOCK"
 
+# --- P1 (ADR-0017/0020) + HC-07: versioni pinnate, nel formato che Dependabot legge.
+# Un tag mobile o un @latest non si puo' aggiornare da un bot ne' riprodurre.
+if python3 -c 'import tomllib' 2>/dev/null; then
+  python3 - <<'PYX' && ok "HC-07/P1: nessun @latest, tag mobile o npx senza versione; FROM con digest" || ko "HC-07/P1: versione mobile o non pinnata" "pin in stack/, services/Dockerfile, compose (ADR-0020)"
+import pathlib, re, sys
+bad = []
+files = [p for d in ("clients", "scripts", "services", "services-biome", "stack") for p in pathlib.Path(d).rglob("*")
+         if p.is_file() and p.suffix in (".sh", ".py", ".json", ".jsonc", ".toml", ".yml", ".yaml", ".txt", "")
+         and p.name != "test-scripts.sh" and "__pycache__" not in p.parts] + [pathlib.Path(".mcp.json")]
+FLOAT = [(r"@latest\b", "@latest"), (r"--prerelease=allow", "--prerelease=allow"), (r":latest\b", ":latest"),
+         (r"\bmain-stable\b", "main-stable"), (r"git\+https://", "uvx/pip da git HEAD"),
+         (r"\$\{[A-Z_]*TAG[A-Z_]*(:-[^}]*)?\}", "tag da variabile")]
+for f in files:
+    for n, line in enumerate(f.read_text(errors="ignore").splitlines(), 1):
+        code = line.split("#", 1)[0] if f.suffix in (".sh", ".py", ".toml", ".yml", ".yaml", ".txt", "") else line
+        if code.lstrip().startswith("//"): continue
+        for rx, why in FLOAT:
+            if re.search(rx, code): bad.append(f"{f}:{n} {why}")
+        # Invocazioni npx: sempre `-y` (non interattivo) e sempre `pkg@versione`.
+        # Forme: ["npx","-y","pkg@1.2.3"] (client) e run "npx -y 'pkg@$PIN'" (script).
+        for m in re.finditer(r'npx["\',\s]+-y["\',\s]+["\']?((?:@[\w.-]+/)?[\w.-]+)(@[\w.$-]+)?', code):
+            if not m.group(2): bad.append(f"{f}:{n} npx -y {m.group(1)} senza versione")
+        if re.search(r'run\s+"npx\s+(?!-y\b)', code): bad.append(f"{f}:{n} npx senza -y")
+for line in pathlib.Path("services/Dockerfile").read_text().splitlines():
+    m = re.match(r"\s*FROM\s+(\S+)", line, re.I)
+    if m and "/" in m.group(1) and "@sha256:" not in m.group(1):
+        bad.append(f"services/Dockerfile: FROM {m.group(1)} senza digest")
+for f in ("services/docker-compose.yml", "services-biome/docker-compose.yml"):
+    for m in re.finditer(r"^\s*image:\s*\"?([^\s\"#]+)", pathlib.Path(f).read_text(), re.M):
+        img = m.group(1)
+        if img.endswith(":local"): continue          # costruita dal Dockerfile
+        tag = img.rsplit(":", 1)[1] if ":" in img.split("/")[-1] else ""
+        if not re.match(r"v?\d+\.\d+", tag): bad.append(f"{f}: {img} (tag mobile o assente)")
+if bad: print("    " + "\n    ".join(bad[:8])); sys.exit(1)
+PYX
+  python3 - <<'PYX' && ok "P1: i pin nei client coincidono con stack/ (serena, MCP)" || ko "P1: pin dei client diversi da stack/" "allinea i client alla PR di Dependabot (stack/requirements-tools.txt)"
+import json, pathlib, re, sys
+req = dict(re.findall(r"^([\w.-]+)==(\S+)", pathlib.Path("stack/requirements-tools.txt").read_text(), re.M))
+npm = json.loads(pathlib.Path("stack/package.json").read_text())["dependencies"]
+bad = []
+for f in ("clients/opencode.jsonc", "clients/codex-config.toml", ".mcp.json"):
+    t = pathlib.Path(f).read_text()
+    for v in re.findall(r"serena-agent==([\w.]+)", t):
+        if v != req.get("serena-agent"): bad.append(f"{f}: serena-agent=={v} != {req.get('serena-agent')}")
+    if "serena" in t and "serena-agent==" not in t: bad.append(f"{f}: Serena senza pin")
+    for pkg, v in re.findall(r'"((?:@[\w.-]+/)?[\w.-]+)@(\d[\w.-]*)"', t):
+        if pkg not in npm: bad.append(f"{f}: {pkg} non e' in stack/package.json")
+        elif npm[pkg] != v: bad.append(f"{f}: {pkg}@{v} != {npm[pkg]}")
+cb = re.search(r"^headroom-ai==(\S+)", pathlib.Path("services/requirements-callback.txt").read_text(), re.M)
+if not cb: bad.append("services/requirements-callback.txt senza headroom-ai==")
+if "requirements-callback.txt" not in pathlib.Path("services/Dockerfile").read_text():
+    bad.append("services/Dockerfile non usa requirements-callback.txt")
+if bad: print("    " + "\n    ".join(bad)); sys.exit(1)
+PYX
+  python3 - <<'PYX' && ok "P1: stack/components.toml coerente (ogni pin esiste e contiene il componente)" || ko "P1: stack/components.toml incoerente" "ADR-0017"
+import pathlib, sys, tomllib
+comps = tomllib.load(open("stack/components.toml", "rb"))["component"]
+bad, ids = [], set()
+for c in comps:
+    for k in ("id", "layer", "scope", "required", "pin", "key", "tracked"):
+        if k not in c: bad.append(f"{c.get('id','?')}: manca {k}")
+    if c["id"] in ids: bad.append(f"{c['id']}: duplicato")
+    ids.add(c["id"])
+    if c["pin"] == "none":
+        if c["tracked"]: bad.append(f"{c['id']}: tracked senza pin")
+        if not c.get("note"): bad.append(f"{c['id']}: pin none senza motivo (note)")
+    elif not pathlib.Path(c["pin"]).is_file(): bad.append(f"{c['id']}: {c['pin']} non esiste")
+    elif c["key"] not in pathlib.Path(c["pin"]).read_text(): bad.append(f"{c['id']}: {c['key']} non in {c['pin']}")
+tr = sum(1 for c in comps if c["tracked"])
+print(f"    misura P1: {tr}/{len(comps)} componenti con pin letto da Dependabot ({100*tr//len(comps)}%)")
+if bad: print("    " + "\n    ".join(bad)); sys.exit(1)
+PYX
+else
+  echo -e "  \033[2m–\033[0m controlli P1 saltati (serve python >= 3.11 per tomllib)"
+fi
+
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
 # Un controllo che fallisce per motivi ambientali e' peggio di un controllo assente.

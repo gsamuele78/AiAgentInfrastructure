@@ -55,8 +55,8 @@ mattpocock/skills, oh-my-openagent, Dependabot schema), non la documentazione.
 | A3 | opencode carica **sia** `.claude/skills` **sia** `.agents/skills`: una skill in entrambe = duplicata in context | `opencode/src/skill/index.ts` | media | P4 |
 | A4 | mattpocock installato per intero (incl. `in-progress/*`), senza pin | `stack-selective-install.sh` | media | P4 |
 | A5 | Collisione `code-review` (mattpocock) con la skill integrata di Claude Code | elenco skill | media | P4 |
-| A6 | Versioni non pinnate: immagine LiteLLM `main-stable`, `headroom-ai`, `serena-agent@latest --prerelease`, MCP via `npx -y` senza versione | Dockerfile, client | **alta** (supply chain) | P1 |
-| A7 | Dependabot non può leggere `FROM ${ARG}` né `${VLLM_TAG:-latest}` | Dockerfile, compose BIOME | media | P1 |
+| A6 | Versioni non pinnate: immagine LiteLLM `main-stable`, `headroom-ai`, `serena-agent@latest --prerelease`, MCP via `npx -y` senza versione | Dockerfile, client | **alta** (supply chain) | **P1 ✅** |
+| A7 | Dependabot non può leggere `FROM ${ARG}` né `${VLLM_TAG:-latest}` | Dockerfile, compose BIOME | media | **P1 ✅** |
 | A8 | `bak()` crea un `.bak` a ogni run (non idempotente) e calcola il timestamp due volte | `stack-selective-install.sh` | bassa | P3 |
 | A9 | Fatti hw/OS solo come testo: nessuno script può decidere sulla base di `detect-hardware.sh` | `detect-hardware.sh` | media | P2 |
 | A10 | Node.js di Debian 13 è il 20.x, **EOL upstream da aprile 2026** | archivio Debian | media | P2 |
@@ -115,6 +115,17 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
 - **Misura**: % di componenti con versione pinnata e tracciata da un bot —
   baseline ≈ 20% (solo Actions/compose) → obiettivo ≥ 90%.
 - **Rollback**: `git revert`; i pin sono solo testo.
+- **Stato (PR P1)**: fatto, con due scostamenti dichiarati.
+  1. `components.toml` **non** ha il campo `version` di ADR-0017: la versione
+     vive solo nel file che Dependabot legge (`pin`), altrimenti sarebbero due
+     verità. ADR-0017 è *Proposed*: lo scostamento va recepito quando la si
+     accetta con P3.
+  2. Obiettivo ≥ 90% **non raggiunto**: 19/25 (76%). I 6 non tracciati hanno
+     un motivo scritto in `components.toml`: commit di mattpocock (P4), opencode,
+     Ollama e runtime Node (installer upstream, P2), headroom sull'host
+     (installato a mano, ADR-0014), fetch-mcp (build da git).
+  `headroom-ai` sull'host non è in `requirements-tools.txt`: nessuno script lo
+  installa, un pin che nessuno usa sarebbe falso.
 
 ### P2 — Fatti hw/OS e primitive di piattaforma *(ADR-0018)*
 - **Deliverable**: `detect-hardware.sh --json` (os_family, atomic, ublue,
@@ -249,6 +260,8 @@ cosa, il test deve diventare rosso), come già fatto per la catena `auto`.
 | 2026-10-10 | Step 0 | tool di Serena che duplicano quelli di opencode (statico, dal sorgente 1.7.0) | `agent`: 5 (~750 token di descrizioni/turno, incl. una shell fuori dalle `permission`) | `ide`: 0 | statico | contesto `ide` confermato (ADR-0022) |
 | 2026-10-10 | Step 0 | regole HC di Infra-Iam-PKI coperte da un controllo con mutazione | 1 di 14 (HC-05) | 5 di 14 (HC-01, 03, 05, 08, 09); 2 non applicabili (10, 11); 3 adattate senza controllo generico (12–14); 3 rinviate (04, 06, 07); 1 respinta con motivo (02) | 10 mutazioni | ✔ |
 | 2026-10-10 | Step 0 | progetti in cui l'installer lascia un `.serena/project.yml` caricabile da Serena 1.7.0 | 0 (KeyError `language_servers`) | 1 di 1 provato (+ 2° run senza scritture) | 1 | ✔ |
+| 2026-10-10 | P1 | componenti con pin letto da Dependabot (`stack/components.toml`, stessi 25 prima e dopo) | 5/25 (20%) | 19/25 (76%) | statico | ✘ obiettivo ≥ 90% non raggiunto: 6 rinviati a P2/P4 con motivo |
+| 2026-10-10 | P1 | controlli sui pin con test di mutazione | 0 | 3 controlli, 15 mutazioni rosse | 15 | ✔ |
 | | | | | | | |
 
 ### Registro prove Bazzite S1 (compilare)

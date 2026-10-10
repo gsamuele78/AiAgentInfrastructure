@@ -2,16 +2,22 @@
 # e la merge resta manuale (ADR-0010). "Abbastanza stabile" = cooldown: una
 # versione deve essere pubblica da N giorni prima che Dependabot la proponga,
 # cosi' le release ritirate o rotte nei primi giorni non arrivano mai qui.
-# Solo `default-days`: per github-actions, docker e docker-compose GitHub
-# RIFIUTA semver-*-days (lo schema SchemaStore li accetta, GitHub no). Le
-# major si governano con `groups` (escluse dai gruppi = PR singola, letta a parte).
+# Per github-actions, docker e docker-compose solo `default-days`: GitHub
+# RIFIUTA semver-*-days (lo schema SchemaStore li accetta, GitHub no). Per pip
+# e npm le soglie per semver sono ammesse. Le major si governano con `groups`
+# (escluse dai gruppi = PR singola, letta a parte).
 #
-# Cosa NON copre ancora (piano P1 in docs/PLAN-STACK-VALIDATION.md):
-#   - services/Dockerfile: i FROM usano ARG (${LITELLM_IMAGE_TAG}), che
-#     Dependabot non risolve. Diventa aggiornabile col pin a digest (debito #1).
-#   - vLLM: tag da variabile (${VLLM_TAG:-latest}), stesso problema.
-#   - tool uv/npm (Serena, graphify, headroom-ai, MCP via npx): nessun manifest
-#     versionato finche' non esiste stack/ (ADR-0017).
+# Dove stanno i pin (P1, ADR-0017):
+#   services/Dockerfile           FROM letterali + digest (debito #1 chiuso)
+#   services/requirements-callback.txt   headroom-ai nell'immagine del gateway
+#   stack/requirements-tools.txt  tool Python dell'host (serena-agent, graphifyy)
+#   stack/package.json            MCP Node, CLI skills, AgentShield
+# I client ripetono le versioni letterali: una PR su stack/ e' ROSSA finche' non
+# si allineano i client (test-scripts.sh §3). Voluto: vedi stack/requirements-tools.txt.
+#
+# Cosa NON copre (stack/components.toml, `pin = "none"`): commit di
+# mattpocock/skills (P4), opencode e Ollama (script d'installazione upstream),
+# fetch-mcp (build locale da git), runtime Node (P2).
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -34,6 +40,12 @@ updates:
       # migrazione dei dati (pg_upgrade o dump/restore + TC-05). Mai via bot.
       - dependency-name: postgres
         update-types: [version-update:semver-major]
+      # Costruita in locale dal Dockerfile (build:), non scaricata.
+      - dependency-name: litellm-headroom
+      # vLLM cambia il comportamento del modello servito: un aggiornamento si
+      # prova sul server BIOME, non si propone in automatico ogni settimana.
+      - dependency-name: vllm/vllm-openai
+        update-types: [version-update:semver-major, version-update:semver-minor]
     groups:
       compose:
         patterns: ["*"]
@@ -45,5 +57,28 @@ updates:
     directory: /services
     schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Rome }
     cooldown: { default-days: 14 }
+    commit-message: { prefix: chore, include: scope }
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: pip
+    directories: [/stack, /services]
+    schedule: { interval: weekly, day: monday, time: "05:00", timezone: Europe/Rome }
+    cooldown: { default-days: 7, semver-major-days: 30 }
+    groups:
+      python-tools:
+        patterns: ["*"]
+        update-types: [minor, patch]
+    commit-message: { prefix: chore, include: scope }
+    open-pull-requests-limit: 2
+
+  - package-ecosystem: npm
+    directory: /stack
+    # Mensile: gli MCP rilasciano spesso e ogni bump va allineato a mano nei client.
+    schedule: { interval: monthly, time: "05:00", timezone: Europe/Rome }
+    cooldown: { default-days: 7, semver-major-days: 30 }
+    groups:
+      node-tools:
+        patterns: ["*"]
+        update-types: [minor, patch]
     commit-message: { prefix: chore, include: scope }
     open-pull-requests-limit: 2

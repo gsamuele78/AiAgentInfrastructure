@@ -13,7 +13,7 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 |---|---|---|
 | IaC / config dichiarative | ✅ | compose, YAML, unit file, tutti in repo |
 | Build riproducibile | ⚠️ | Dockerfile + gate `import HeadroomCallback`. **La build non è mai passata in CI** fino al 2026-08-21: l'immagine upstream (Wolfi + venv `uv`) non ha `pip`. Corretto; da confermare col primo run verde. Nessuna immagine è mai stata costruita né deployata. |
-| Pin versioni | ⚠️ | `main-stable` è mobile → **pinna un digest sha256** |
+| Pin versioni | ✅ | `FROM` letterale + digest nel Dockerfile, tag espliciti nei compose, tool in `stack/` (P1); Dependabot li aggiorna |
 | Config immutabile | ✅ | `litellm_config.yaml:ro` |
 | Segreti fuori dai config | ✅ | solo `os.environ/` |
 | Permessi ristretti | ✅ | `.env` 600 |
@@ -36,9 +36,9 @@ Verifica automatica: `scripts/devops-audit.sh`. Qui il quadro e **cosa manca**.
 | Scan CVE immagini | ⚠️ | non implementato |
 
 ## Debito riconosciuto (priorità)
-1. **Immagine su tag mobile** → pinna `main-stable@sha256:...`
-   (digest misurato il 2026-08-21: `sha256:4b3226f4ccd7793d7dca6862d3681604d7ab640d8d6285be6061fd48514e6e71`;
-   richiede `FROM ...@sha256:` invece di `:${TAG}`)
+1. ~~**Immagine su tag mobile**~~ → **chiuso (P1, 2026-10-10)**: `FROM
+   ghcr.io/berriai/litellm-database:v1.104.2@sha256:5a9ff0fd…` (ciò a cui puntava
+   `main-stable` quel giorno), aggiornato da Dependabot con 14 giorni di cooldown.
 2. **Nessun alerting** → minimo utile: `callbacks: ["prometheus"]` + scrape
 3. **Rotazione credenziali** → le vecchie erano in un file 664: rigenerale.
    **Non risulta fatto**: nessuna traccia nel repo.

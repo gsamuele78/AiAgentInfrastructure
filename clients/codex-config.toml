@@ -5,9 +5,10 @@ name = "LiteLLM gateway"
 base_url = "http://127.0.0.1:4000/v1"
 requires_openai_auth = true
 env_key = "OPENAI_API_KEY"
+# Pin esatto (prima: HEAD di git, non pinnato). Stesso pin di stack/requirements-tools.txt.
 [mcp_servers.serena]
 command = "uvx"
-args = ["--from","git+https://github.com/oraios/serena","serena","start-mcp-server","--context","codex","--project-from-cwd"]
+args = ["--from","serena-agent==1.7.0","serena","start-mcp-server","--project-from-cwd","--context","codex","--open-web-dashboard","False"]
 # MCP headroom: e' un TOOL a se', non il proxy standalone rimosso da
 # cleanup-host.sh. La compressione resta il callback dentro LiteLLM (ADR-0003).
 # Non e' censito in docs/TOOLS-STACK.md: valuta se serve davvero (ADR-0006).

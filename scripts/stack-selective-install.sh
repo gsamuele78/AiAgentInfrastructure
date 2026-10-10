@@ -28,8 +28,21 @@ sandbox_guard "scripts/stack-selective-install.sh" "$DRY" warn || exit 1
 
 PROJ="${ARGS[0]:-$PWD}"
 
-say "1) Serena locale (semantic-only, memory OFF)"
-run "uv tool install -p 3.13 'serena-agent@latest' --prerelease=allow || echo '  (gia installata?)'"
+# Pin: un solo posto per ecosistema, quello che Dependabot legge (ADR-0020).
+# Uno script che "installa l'ultima" non e' riproducibile, ne' annullabile.
+PINS_PY="$HERE/../stack/requirements-tools.txt"; PINS_NPM="$HERE/../stack/package.json"
+pin_py(){ sed -n "s/^$1==\([^[:space:]#]*\).*/\1/p" "$PINS_PY" | head -1; }
+pin_npm(){ python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["dependencies"][sys.argv[2]])' "$PINS_NPM" "$1"; }
+SERENA_PIN=$(pin_py serena-agent); GRAPHIFY_PIN=$(pin_py graphifyy)
+SKILLS_PIN=$(pin_npm skills); SHIELD_PIN=$(pin_npm ecc-agentshield)
+for v in SERENA_PIN GRAPHIFY_PIN SKILLS_PIN SHIELD_PIN; do
+  [ -n "${!v}" ] || { echo "  ✗ $v vuoto: stack/requirements-tools.txt o stack/package.json illeggibili"; exit 1; }
+done
+
+say "1) Serena $SERENA_PIN (semantic-only, memory OFF)"
+# Nessuna installazione globale: i client avviano `uvx --from serena-agent==<pin>`
+# (ADR-0022), quindi la versione e' quella del pin anche senza rilanciare questo script.
+serena(){ uvx --from "serena-agent==$SERENA_PIN" serena "$@"; }
 # Tutti i tool che leggono/scrivono la memoria di Serena (ADR-0007), compresi
 # quelli aggiunti dopo la prima stesura: rename/edit_memory e onboarding (che
 # scrive memorie). Nomi = classi *Tool in snake_case (serena/tools/memory_tools.py).
@@ -54,9 +67,11 @@ else
   echo "  $SPY creato (memoria esclusa)"
 fi
 say "1b) graphify (mappa d'insieme, occasionale)"
-[ "${SKIP_GRAPHIFY:-0}" = 1 ] || { run "uv tool install graphifyy || true"; run "graphify install || true"; }
+[ "${SKIP_GRAPHIFY:-0}" = 1 ] || { run "uv tool install 'graphifyy==$GRAPHIFY_PIN' || true"; run "graphify install || true"; }
 say "2) mattpocock/skills"
-run "npx skills@latest add mattpocock/skills || echo '  poi: /setup-matt-pocock-skills'"
+# La CLI e' pinnata; il CONTENUTO del repo mattpocock no (HEAD): allowlist e
+# commit pinnato arrivano con P4 (ADR-0019). Dichiarato in stack/components.toml.
+run "npx -y 'skills@$SKILLS_PIN' add mattpocock/skills || echo '  poi: /setup-matt-pocock-skills'"
 say "3) config client"
 run "install -d '$CFG/opencode'"; bak "$CFG/opencode/opencode.jsonc"
 run "cp '$HERE/../clients/opencode.jsonc' '$CFG/opencode/opencode.jsonc'"
@@ -76,5 +91,5 @@ echo "  ⚠️ master key in ~/.config/litellm/master.key (chmod 600)"
 say "4) shell env"
 echo "  aggiungi a ~/.bashrc:  source $HERE/../clients/shell-env.sh"
 say "5) AgentShield"
-run "npx ecc-agentshield scan || echo '  rivedi i finding'"
+run "npx -y 'ecc-agentshield@$SHIELD_PIN' scan || echo '  rivedi i finding'"
 echo -e "\n\033[32mFatto.\033[0m Verifica: ./audit-integration.py"

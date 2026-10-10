@@ -1,0 +1,11 @@
+# Tool Python dell'HOST, pinnati (ADR-0017/0020). Dependabot (ecosistema pip) li
+# aggiorna; NON si installano da qui con pip: questo file e' la fonte del pin.
+#   serena-agent: i client lo avviano con `uvx --from serena-agent==<pin>` (ADR-0022).
+#     Il pin e' ripetuto, letterale, in clients/opencode.jsonc, clients/codex-config.toml
+#     e .mcp.json: test-scripts.sh §3 li confronta con questa riga. Una PR di
+#     Dependabot su serena-agent e' quindi ROSSA finche' non si allineano i tre
+#     client: e' voluto, a ogni major va riletto serena/tools/memory_tools.py.
+#   graphifyy: `uv tool install graphifyy==<pin>` (stack-selective-install.sh).
+# Versioni scelte con lo stesso cooldown di ADR-0020 (>= 7 giorni dalla release).
+serena-agent==1.7.0
+graphifyy==0.9.74

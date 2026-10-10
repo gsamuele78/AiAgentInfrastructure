@@ -18,5 +18,8 @@
       "Edit(**/.env)",
       "Edit(~/.config/litellm/**)"
     ]
-  }
+  },
+  "enabledMcpjsonServers": [
+    "serena"
+  ]
 }

@@ -1,0 +1,275 @@
+# stack/components.toml — cosa compone lo stack (ADR-0017), sottoinsieme P1.
+#
+# Differenza voluta dallo schema di ADR-0017: qui NON c'e' un campo `version`.
+# La versione vive in UN posto solo, quello che Dependabot legge (`pin`); un
+# secondo numero qui sarebbe una seconda verita'. `stack.py` (P3) leggera' la
+# versione da `pin`. I campi `probe`, `health`, `files`, `rollback` arrivano con P3.
+#
+# Campi:
+#   layer    ADR-0006 (gateway, storage, compressione, tooling-codice, mcp, skill, agente, ci, runtime)
+#   scope    vm · host · client · biome · ci
+#   pin      file che contiene la versione, oppure "none" (motivo in `note`)
+#   tracked  il pin e' letto da Dependabot (true/false) — misura di P1
+#   key      nome del pacchetto/immagine dentro `pin` (per il controllo di coerenza)
+#
+# test-scripts.sh §3 verifica: ogni `pin` esiste e contiene `key`; nessun
+# componente tracked senza pin; percentuale tracked stampata (riga Misura di P1).
+
+[[component]]
+id = "litellm"
+layer = "gateway"
+scope = "vm"
+required = true
+pin = "services/Dockerfile"
+key = "ghcr.io/berriai/litellm-database"
+tracked = true
+adr = ["0001", "0020"]
+
+[[component]]
+id = "uv-image"
+layer = "gateway"
+scope = "vm"
+required = true
+pin = "services/Dockerfile"
+key = "ghcr.io/astral-sh/uv"
+tracked = true
+adr = ["0020"]
+
+[[component]]
+id = "headroom-callback"
+layer = "compressione"
+scope = "vm"
+required = true
+pin = "services/requirements-callback.txt"
+key = "headroom-ai"
+tracked = true
+adr = ["0003"]
+
+[[component]]
+id = "postgres"
+layer = "storage"
+scope = "vm"
+required = true
+pin = "services/docker-compose.yml"
+key = "postgres"
+tracked = true
+adr = ["0004"]
+
+[[component]]
+id = "biome-tls"
+layer = "gateway"
+scope = "vm"
+required = false
+pin = "services/docker-compose.yml"
+key = "alpine"
+tracked = true
+adr = ["0009"]
+note = "stunnel installato all'avvio: viola HC-06 (rilievo A19)"
+
+[[component]]
+id = "vllm"
+layer = "gateway"
+scope = "biome"
+required = false
+pin = "services-biome/docker-compose.yml"
+key = "vllm/vllm-openai"
+tracked = true
+adr = ["0009"]
+note = "Dependabot propone solo le patch: minor/major si provano sul server"
+
+[[component]]
+id = "nginx-biome"
+layer = "gateway"
+scope = "biome"
+required = false
+pin = "services-biome/docker-compose.yml"
+key = "nginx"
+tracked = true
+adr = ["0009"]
+
+[[component]]
+id = "serena"
+layer = "tooling-codice"
+scope = "client"
+required = true
+pin = "stack/requirements-tools.txt"
+key = "serena-agent"
+tracked = true
+adr = ["0006", "0007", "0022"]
+note = "ripetuto letterale in clients/opencode.jsonc, clients/codex-config.toml, .mcp.json"
+
+[[component]]
+id = "graphify"
+layer = "tooling-codice"
+scope = "host"
+required = false
+pin = "stack/requirements-tools.txt"
+key = "graphifyy"
+tracked = true
+adr = ["0006"]
+
+[[component]]
+id = "skills-cli"
+layer = "skill"
+scope = "host"
+required = true
+pin = "stack/package.json"
+key = "skills"
+tracked = true
+adr = ["0019"]
+
+[[component]]
+id = "mattpocock-skills"
+layer = "skill"
+scope = "host"
+required = true
+pin = "none"
+key = "mattpocock/skills"
+tracked = false
+adr = ["0019"]
+note = "HEAD del repo; allowlist e commit pinnato con P4"
+
+[[component]]
+id = "agentshield"
+layer = "skill"
+scope = "host"
+required = false
+pin = "stack/package.json"
+key = "ecc-agentshield"
+tracked = true
+adr = ["0006"]
+
+[[component]]
+id = "mcp-memory"
+layer = "mcp"
+scope = "client"
+required = true
+pin = "stack/package.json"
+key = "@modelcontextprotocol/server-memory"
+tracked = true
+adr = ["0007"]
+
+[[component]]
+id = "mcp-sequential-thinking"
+layer = "mcp"
+scope = "client"
+required = false
+pin = "stack/package.json"
+key = "@modelcontextprotocol/server-sequential-thinking"
+tracked = true
+adr = ["0006"]
+
+[[component]]
+id = "mcp-filesystem"
+layer = "mcp"
+scope = "client"
+required = false
+pin = "stack/package.json"
+key = "@modelcontextprotocol/server-filesystem"
+tracked = true
+adr = ["0006"]
+
+[[component]]
+id = "mcp-context7"
+layer = "mcp"
+scope = "client"
+required = false
+pin = "stack/package.json"
+key = "@upstash/context7-mcp"
+tracked = true
+adr = ["0006"]
+
+[[component]]
+id = "mcp-firecrawl"
+layer = "mcp"
+scope = "client"
+required = false
+pin = "stack/package.json"
+key = "firecrawl-mcp"
+tracked = true
+adr = ["0006"]
+
+[[component]]
+id = "mcp-tavily"
+layer = "mcp"
+scope = "client"
+required = false
+pin = "stack/package.json"
+key = "tavily-mcp"
+tracked = true
+adr = ["0006"]
+
+[[component]]
+id = "mcp-fetch"
+layer = "mcp"
+scope = "client"
+required = false
+pin = "none"
+key = "zcaceres/fetch-mcp"
+tracked = false
+adr = ["0006"]
+note = "build locale da git (AGENTS-SETUP.md): decidere se pinnare un commit o sostituirlo"
+
+[[component]]
+id = "opencode"
+layer = "agente"
+scope = "host"
+required = true
+pin = "none"
+key = "opencode"
+tracked = false
+adr = ["0005"]
+note = "installer upstream (curl | bash): candidato a mise/brew in P2 (ADR-0018)"
+
+[[component]]
+id = "ollama"
+layer = "gateway"
+scope = "host"
+required = false
+pin = "none"
+key = "ollama"
+tracked = false
+adr = ["0008"]
+note = "installer upstream in setup-ollama.sh: versione da registrare in P2"
+
+[[component]]
+id = "headroom-host"
+layer = "compressione"
+scope = "host"
+required = false
+pin = "none"
+key = "headroom-ai"
+tracked = false
+adr = ["0014"]
+note = "lane abbonamento (variante B): installato a mano, nessuno script lo gestisce"
+
+[[component]]
+id = "node-runtime"
+layer = "runtime"
+scope = "host"
+required = true
+pin = "none"
+key = "node"
+tracked = false
+adr = ["0018"]
+note = "Debian 13 ha Node 20 (EOL upstream): scelta del gestore in P2"
+
+[[component]]
+id = "actions-checkout"
+layer = "ci"
+scope = "ci"
+required = true
+pin = ".github/workflows/validate.yml"
+key = "actions/checkout"
+tracked = true
+adr = ["0020"]
+
+[[component]]
+id = "actions-setup-python"
+layer = "ci"
+scope = "ci"
+required = true
+pin = ".github/workflows/validate.yml"
+key = "actions/setup-python"
+tracked = true
+adr = ["0020"]

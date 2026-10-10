@@ -29,15 +29,15 @@ Legenda: ✅ adotta · 🔧 adatta · ⏳ rinvia (dove) · ❌ non adotta.
 | 1 | Fonte unica del contesto agenti | `.ai/project.yml` → `generate.sh` genera `CLAUDE.md`, `AGENTS.md`, `.cursorrules`, `.clinerules`, `.windsurfrules`, Copilot | `AGENTS.md` a mano, `CLAUDE.md` rimanda (ADR-0013) | ❌ generatore. Tutti i nostri client leggono già `AGENTS.md`; il generatore aggiunge una fonte e 6 file senza un lettore in più | ADR-0022 §1 |
 | 2 | Validatore delle regole HC-01…14 | `.ai/validate.sh` | invarianti in `test-scripts.sh` | 🔧 le regole utili diventano controlli in `test-scripts.sh` con l'ID HC nel commento; **nessun secondo validatore**; `stack.py validate` (P3) le orchestra | ADR-0022 §2, tabella sotto |
 | 3 | Skill di repo `.agents/skills/<n>/SKILL.md` | `compose-constraint-audit`, `sandbox-test`, `script-safety-review` | nessuna; formato già scelto da ADR-0019 | ⏳ `script-safety-review` confluisce nella skill `infra-change`, insieme ad `adr`; le altre due sono specifiche di quel repo (HC numerati, topologia Vagrant a 4 VM) | P4 |
-| 4a | Serena: versione | `uvx --from serena-agent==1.7.0` | `uv tool install 'serena-agent@latest' --prerelease=allow` (opencode); `uvx --from git+…/serena` **HEAD non pinnato** (Codex) | ✅ pin esatto + `uvx`, in un posto che Dependabot legge | P1 |
+| 4a | Serena: versione | `uvx --from serena-agent==1.7.0` | `uv tool install 'serena-agent@latest' --prerelease=allow` (opencode); `uvx --from git+…/serena` **HEAD non pinnato** (Codex) | ✅ pin esatto + `uvx`, in un posto che Dependabot legge | **P1 ✅** |
 | 4b | Serena: contesto opencode | `agent` | `ide` | 🔧 resta `ide`: `agent` espone 5 tool che duplicano quelli di opencode, fra cui `execute_shell_command`, che scavalca le `permission` (ADR-0019). Proposto a Infra-Iam-PKI di passare a `ide` | ADR-0022 §3 |
-| 4c | Serena: Claude Code | `.mcp.json`, `--context claude-code`, `enabledMcpjsonServers` | non configurata (rilievo A14) | ✅ | P1 (porta il pin) |
+| 4c | Serena: Claude Code | `.mcp.json`, `--context claude-code`, `enabledMcpjsonServers` | non configurata (rilievo A14) | ✅ | **P1 ✅** (`.mcp.json`) |
 | 4d | `.serena/project.yml` versionato | completo, `language_servers`, `ignored_paths`, `initial_prompt` | non versionato; l'installer ne scriveva uno di 2 righe **senza `language_servers`** | ✅ versionato, generato dal template 1.7.0; `initial_prompt` rimanda ad `AGENTS.md`. Installer corretto (rilievo A15) | **Step 0** |
 | 5 | `.claude/settings.json` `permissions.deny` sui segreti | `.env*`, chiavi, cert, dati DB, backup | assente | ✅ adattato ai nostri path (`.env`, `master.key`, `forward.env`, `certs/`, `backups/`, `*.sql.gz`, `~/.config/litellm/`) | **Step 0** |
 | 6 | Plugin LSP di Claude Code (`.claude-plugin/`) | bash, yaml (schema compose), dockerfile, marksman, pyright, R | assente | ❌ secondo tool nel layer "tooling codice", che è Serena (ADR-0006); richiede 5 language server sull'host | ADR-0022 §6 |
 | 7 | `lsp` di opencode | stessi server | assente | ⏳ diagnostica dopo ogni modifica: valore plausibile ma da misurare (ADR-0021), con i server installati e pinnati | P4 |
-| 8 | Dependabot | compose, docker, actions; immagini locali ignorate; gruppi; prefisso `deps`/`ci` | compose, docker, actions con **cooldown** (ADR-0020) | 🔧 si tiene il nostro (cooldown, `postgres` major ignorata, prefisso `chore` per la convenzione del repo); si aggiunge l'ignore dell'immagine costruita in locale e `pip`/`npm` su `stack/` | P1 |
-| 9 | Actions pinnate a SHA (`@<sha> # vX.Y.Z`) | sì | tag mobili `@v4`, `@v5` | ✅ | P1 |
+| 8 | Dependabot | compose, docker, actions; immagini locali ignorate; gruppi; prefisso `deps`/`ci` | compose, docker, actions con **cooldown** (ADR-0020) | 🔧 si tiene il nostro (cooldown, `postgres` major ignorata, prefisso `chore` per la convenzione del repo); si aggiunge l'ignore dell'immagine costruita in locale e `pip`/`npm` su `stack/` | **P1 ✅** |
+| 9 | Actions pinnate a SHA (`@<sha> # vX.Y.Z`) | sì | tag mobili `@v4`, `@v5` | ✅ (checkout v7.0.1 come là, setup-python v6.3.0) | **P1 ✅** |
 | 10 | `security-scan.yml`: gitleaks + Trivy | sì, Trivy immagini report-only | grep di pattern noti in `validate.yml` | ⏳ chiude in parte il debito #4; PR dedicata dopo P1 (immagini da pinnare prima) | dopo P1 |
 | 11 | `lint.yml` (yamllint, hadolint, shellcheck bloccante, markdownlint) | sì | `validate.yml`: parse + shellcheck `-S error` | ⏳ hadolint e shellcheck più severo valgono la pena; markdownlint/yamllint no (costo/beneficio basso con un maintainer). Da valutare con P5 (pre-commit), stessi tool | P5 |
 | 12 | `Makefile` come ingresso (`make lint && make validate`) | sì | `test-scripts.sh` + `devops-audit.sh` | ❌ l'ingresso unico previsto è `stack.py` (ADR-0017); un Makefile sarebbe il terzo | ADR-0022 §6 |
@@ -59,7 +59,7 @@ Legenda: ✅ adotta · 🔧 adatta · ⏳ rinvia (dove) · ❌ non adotta.
 | HC-04 | password mai come argomento CLI | ⏳ nessuno script oggi passa password in CLI; il controllo nasce quando `stack.py` gestirà credenziali | P3 |
 | HC-05 | postgres non esposto | ✅ c'era già | `test-scripts.sh` §4 |
 | HC-06 | nessuna installazione di pacchetti a runtime | ⏳ violata da `biome-tls` (`apk add stunnel` all'avvio, solo profilo `biome`): da sistemare con un'immagine con stunnel o un Dockerfile | dopo P1 |
-| HC-07 | niente `:latest` / tag mobili | ✅ è il cuore di P1 | P1 |
+| HC-07 | niente `:latest` / tag mobili | ✅ portata, con `FROM` a digest e coerenza client↔`stack/` | `test-scripts.sh` §3 (**P1**) |
 | HC-08 | `.env` mai tracciati | ✅ portata (anche chiavi, `master.key`, `forward.env`) | `test-scripts.sh` §3 |
 | HC-09 | niente `docker.sock` montato | ✅ portata | `test-scripts.sh` §3 |
 | HC-10 | deploy esce 1 se `chown` fallisce | — nessun `chown` nei nostri deploy | — |
