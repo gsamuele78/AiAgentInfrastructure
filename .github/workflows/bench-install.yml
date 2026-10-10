@@ -1,0 +1,73 @@
+name: bench-install
+# P2b (PLAN-STACK-VALIDATION, ADR-0021): metodi di installazione e rollback
+# dello strato S3 misurati contro le soglie di bench/install-methods/PREREG.md.
+# Non e' un gate di ogni PR: gira quando cambia il benchmark o a mano.
+on:
+  pull_request:
+    paths: ["bench/install-methods/**", ".github/workflows/bench-install.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+
+jobs:
+  container:
+    # baseline e mise su OS reali, da root come nei container di os-matrix.
+    name: ${{ matrix.method }} su ${{ matrix.image }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:13", "fedora:44"]
+        method: [baseline, mise]
+        include:
+          - image: "debian:13"
+            prep: apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-pip curl ca-certificates xz-utils git >/dev/null && pip install -q --break-system-packages uv==0.11.7
+          - image: "fedora:44"
+            prep: dnf install -y -q python3 python3-pip curl xz tar git-core findutils >/dev/null && pip install -q uv==0.11.7
+    container: ${{ matrix.image }}
+    defaults: { run: { shell: bash } }
+    steps:
+      - name: Prerequisiti
+        run: ${{ matrix.prep }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Misura
+        run: bench/install-methods/run.sh ${{ matrix.method }} bench/results
+      - name: Esito contro le soglie
+        if: always()
+        run: bench/install-methods/report.py bench/results | tee -a "$GITHUB_STEP_SUMMARY"
+
+  runner:
+    # brew, nix e distrobox hanno bisogno di un utente non root e di una VM
+    # vera (podman rootless, /nix): il runner Ubuntu, non un container.
+    name: ${{ matrix.method }} su ubuntu-latest
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        method: [baseline, mise, brew, nix, distrobox]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: uv
+        run: python3 -m pip install -q --user uv==0.11.7 && echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: nix (utente singolo, installer verificato con sha256)
+        if: matrix.method == 'nix'
+        run: |
+          v=2.34.6; sum=bf6d12da4aeaae38ab509dc736df648597bcdee051046ea76d3d53d5b18fa54a
+          curl -fsSL "https://releases.nixos.org/nix/nix-$v/install" -o /tmp/nix-install
+          echo "$sum  /tmp/nix-install" | sha256sum -c -
+          sudo install -d -o "$(id -u)" -g "$(id -g)" /nix
+          sh /tmp/nix-install --no-daemon --yes
+          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
+      - name: distrobox
+        if: matrix.method == 'distrobox'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq distrobox podman >/dev/null
+      - name: brew nel PATH
+        if: matrix.method == 'brew'
+        run: echo /home/linuxbrew/.linuxbrew/bin >> "$GITHUB_PATH"
+      - name: Misura
+        run: bench/install-methods/run.sh ${{ matrix.method }} bench/results
+      - name: Esito contro le soglie
+        if: always()
+        run: bench/install-methods/report.py bench/results | tee -a "$GITHUB_STEP_SUMMARY"
