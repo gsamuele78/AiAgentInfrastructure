@@ -5,6 +5,8 @@ set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib/hw-detect.sh
 . "$HERE/lib/hw-detect.sh"
+# shellcheck source=lib/llm-plan.sh
+. "$HERE/lib/llm-plan.sh"
 EMIT=0; [ "${1:-}" = "--emit-config" ] && EMIT=1
 sec(){ echo -e "\n\033[36m━━ $* ━━\033[0m"; }
 kv(){ printf "  %-22s %s\n" "$1" "$2"; }
@@ -51,19 +53,12 @@ if command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi -L >/dev/null 2>&1; then
     | while IFS=, read -r i n m; do kv "GPU $i" "$n —$m"; done
   V=$(nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits 2>/dev/null | head -1 | tr -d ' '); V=${V:-0}
   NG=$(nvidia-smi --list-gpus 2>/dev/null | wc -l)
-  if   [ "$V" -ge 40000 ]; then
+  VRAM_SEEN=$V
+  if [ "$V" -ge 40000 ]; then
     rec "Fascia server: usa vLLM (multi-utente), non Ollama"
     rec "Modello: Qwen3-Coder-Next 80B-A3B (MoE, ~35-40 GB Q4/FP8) — vedi docs/BIOME-L40S.md"
     [ "$NG" -ge 2 ] && rec "$NG GPU: UN modello per GPU (no NVLink su L40S → evita tensor-parallel)"
-  elif [ "$V" -ge 20000 ]; then OLL="qwen2.5-coder:14b"; rec "14B interamente in VRAM"
-  elif [ "$V" -ge 10000 ]; then OLL="qwen2.5-coder:7b";  rec "7B interamente in VRAM (~30 tok/s)"
-  elif [ "$V" -ge 6000 ];  then OLL="qwen2.5-coder:7b"; NGPU_LAYERS=24; rec "7B con offload parziale (num_gpu ~24)"
-  elif [ "$V" -ge 3500 ];  then
-    OLL="qwen2.5-coder:3b"
-    rec "3B in VRAM (veloce: FIM e task bounded)"
-    [ "$RAM_AV" -ge 12 ] && { NGPU_LAYERS=28; rec "Con ${RAM_AV} GB liberi: ANCHE 7B in offload (num_gpu ~28, 8-15 tok/s)"; }
-    warn "Un 3B non regge il coding agentico complesso: usalo come Tier 0"
-  else warn "VRAM ${V} MiB: solo CPU (lento, adatto a batch)"; fi
+  fi
   [ "$CHASSIS" = laptop ] && warn "Laptop: OLLAMA_KEEP_ALIVE=2m (termico/batteria)"
 elif [ -n "$GPU_ADDRS" ]; then
   # C'E' l'hardware ma non gli strumenti: dirlo, invece di dichiarare
@@ -87,6 +82,20 @@ else
   kv "" "nessun dispositivo 0x10de di classe 0x03 sul bus PCI"
   rec "Nessuna inferenza locale: usa le lane cloud/BIOME"
 fi
+
+# Una sola tabella hardware → modelli, la stessa che setup-ollama.sh applica
+# (scripts/lib/llm-plan.sh): i modelli sono quelli del gateway, l'hardware
+# decide quali entrano.
+sec "LLM locale: cosa regge questa macchina"
+DISK_LLM=$(df -BG --output=avail "$(vm_disk_path)" 2>/dev/null | tail -1 | tr -dc '0-9')
+IFS='|' read -r LLM_VERDICT LLM_MODELS NGPU_LAYERS LLM_NOTE <<<"$(llm_plan "${VRAM_SEEN:-0}" "$RAM_GB" "${DISK_LLM:-0}")"
+kv "Verdetto" "$LLM_VERDICT"
+kv "Modelli" "${LLM_MODELS:-nessuno}"
+rec "$LLM_NOTE"
+[ -n "$NGPU_LAYERS" ] && rec "offload stimato: ~${NGPU_LAYERS}/28 layer in GPU (Ollama decide da solo)"
+[ -n "$SANDBOX" ] && warn "sandbox: GPU, RAM e disco visti da qui possono non essere quelli dell'host"
+OLL=$(echo "$LLM_MODELS" | awk '{print $NF}')
+[ -n "$OLL" ] && rec "per installare, verificare e poter annullare: ./scripts/setup-ollama.sh (--plan per rivedere)"
 
 sec "Virtualizzazione e rete"
 grep -qE 'vmx|svm' /proc/cpuinfo 2>/dev/null && kv KVM supportato || warn "virtualizzazione HW non attiva (BIOS?)"

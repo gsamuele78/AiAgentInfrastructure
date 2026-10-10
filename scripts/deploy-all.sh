@@ -84,15 +84,21 @@ X
 run "grep -qF 'clients/shell-env.sh' ~/.bashrc 2>/dev/null || echo 'source $HERE/../clients/shell-env.sh' >> ~/.bashrc"
 ask "Fatto?" && ok "dual-auth pronta" || warn "da completare"; fi
 
-if ph 6; then say "FASE 6 — LLM locale (opzionale)"
-# La GPU si cerca sul bus PCI, non con `command -v nvidia-smi`: su Bazzite senza
-# immagine -nvidia, o a dGPU spenta, il binario manca ma la GPU c'e' -- e
-# setup-ollama.sh sa dire cosa installare (nvidia_missing_hint).
-if [ -n "$(nvidia_pci_devices)" ]; then
-  run "./detect-hardware.sh --emit-config"
-  ask "Installare e configurare Ollama ora?" \
-    && run "./setup-ollama.sh" || warn saltata
-else warn "nessuna GPU: salto"; fi; fi
+if ph 6; then say "FASE 6 — LLM locale (deciso dall'hardware)"
+# setup-ollama.sh decide dall'hardware QUALI modelli del gateway reggere
+# (scripts/lib/llm-plan.sh), verifica ogni passo e, se uno fallisce, annulla da
+# solo il proprio run. Il piano si mostra prima: nessuna modifica senza conferma.
+run "./setup-ollama.sh --plan"
+if ask "Installare, verificare e avviare l'LLM locale secondo questo piano?"; then
+  if [ "$DRY" = 1 ]; then run "./setup-ollama.sh --dry-run"; rc=0
+  else ./setup-ollama.sh; rc=$?; fi
+  case "$rc" in
+    0) ok "LLM locale operativo (annulla: ./setup-ollama.sh --rollback · rimuovi: ./setup-ollama.sh --remove)" ;;
+    1) warn "un passo e' fallito: il run e' gia' stato annullato (vedi sopra). Il gateway usa il cloud." ;;
+    2) warn "prerequisito mancante (virbr0 o OS atomico): nessuna modifica fatta" ;;
+    3) warn "hardware non adatto a un LLM locale: nessuna modifica, il gateway usa il cloud" ;;
+  esac
+else warn "LLM locale saltato"; fi; fi
 
 if ph 7; then say "FASE 7 — Verifica"
 run "./devops-audit.sh || true"; run "./audit-integration.py || true"; run "./test-all.sh || true"; fi

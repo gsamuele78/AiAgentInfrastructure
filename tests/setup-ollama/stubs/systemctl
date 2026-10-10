@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# systemctl finto: restart legge OLLAMA_HOST dall'override, come farebbe systemd.
+. "$(dirname "$0")/_lib"
+args=("$@"); [ "${args[0]:-}" = "--quiet" ] && args=("${args[@]:1}")
+cmd=${args[0]:-}; unit=${args[1]:-}; [ "$cmd" = is-active ] && [ "$unit" = "--quiet" ] && unit=${args[2]:-}
+U="$OLLAMA_ROOT/etc/systemd/system/ollama.service"; O="$OLLAMA_ROOT/etc/systemd/system/ollama.service.d/override.conf"
+echo "systemctl $*" >> "$F/calls"
+case "$cmd" in
+  daemon-reload|enable|disable) exit 0 ;;
+  stop) rm -f "$F/active"; exit 0 ;;
+  restart|start)
+    [ -f "$U" ] || { echo "Unit ollama.service not found." >&2; exit 5; }
+    h=$(sed -n 's/^Environment="OLLAMA_HOST=\(.*\)"$/\1/p' "$O" 2>/dev/null | tail -1)
+    echo "${FAKE_LISTEN:-${h:-127.0.0.1:11434}}" > "$F/listen"; touch "$F/active"; exit 0 ;;
+  is-active) active ;;
+  cat) [ -f "$U" ] ;;
+  *) exit 0 ;;
+esac
