@@ -33,7 +33,11 @@ Python in `stack/requirements-tools.txt` (pip), MCP Node in `stack/package.json`
 mattpocock) lo segnala `stack.py outdated`.
 
 "Abbastanza stabile" diventa **cooldown**: una versione viene proposta solo
-dopo N giorni dalla pubblicazione (patch 3 · minor 14 · major 30 · default 7).
+dopo N giorni dalla pubblicazione (7 per Actions e compose, 14 per le immagini
+del Dockerfile). Le soglie per semver (`semver-*-days`) **non sono ammesse** da
+GitHub per questi ecosistemi — lo schema pubblico le accetta, il parser di
+Dependabot no (scoperto dal check della PR #4): varranno per pip/npm in P1. Le
+major restano fuori dai gruppi, quindi arrivano come PR singole.
 Gli aggiornamenti di sicurezza non aspettano il cooldown. Major di postgres
 **ignorate**: sono migrazioni di dati, non aggiornamenti d'immagine.
 
@@ -64,7 +68,7 @@ cooldown evita le release ritirate nei primi giorni; zero infrastruttura nuova.
 - PR settimanali da leggere: tempo contro il vincolo dei 30 min/mese
   (mitigato: gruppi, limite di PR aperte, cooldown).
 - Il cooldown ritarda anche le correzioni: una patch importante non di
-  sicurezza aspetta 3 giorni.
+  sicurezza aspetta 7 giorni (14 per le immagini).
 
 **Da rivedere se:** servono pin in formati che Dependabot non legge (allora
 Renovate), o i criteri di uno stadio sono soddisfatti.
