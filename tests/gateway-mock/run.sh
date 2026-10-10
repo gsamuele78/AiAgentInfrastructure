@@ -11,6 +11,8 @@
 #    G4 disable_fallbacks: la richiesta fallisce invece di saltare (serve a bench/compliance)
 #    G5 prompt oltre max_input_tokens -> context_window_fallbacks, il locale non e' chiamato
 #    G6 i callback configurati vengono invocati (successo e fallimento)
+#    G7 bench/compliance/probe.py arriva in fondo contro il gateway (il mock accetta tutto:
+#       qui si prova l'impianto, non la conformita' dei provider)
 #  Cosa NON prova: provider veri, headroom vero, il DB. Restano L5 (test-all.sh).
 #  Uso: tests/gateway-mock/run.sh   (LITELLM_BIN=... per un litellm gia' installato)
 # ============================================================
@@ -94,6 +96,10 @@ else ko "G5 context_window_fallbacks: avuto $r, chiamate al locale: $local_calle
 if grep -q '"event": "success"' "$W/cb-$PA.jsonl" 2>/dev/null && grep -q '"event": "failure"' "$W/cb-$PA.jsonl"; then
   ok "G6 callback invocato su successo e fallimento"
 else ko "G6 callback mai invocato" "$(cat "$W/cb-$PA.jsonl" 2>/dev/null)"; fi
+
+out=$(LITELLM_BASE_URL="http://127.0.0.1:$PA" BENCH_KEY=sk-mock-ci "$PY" "$REPO/bench/compliance/probe.py" 2>&1); rc=$?
+if [ "$rc" = 0 ] && grep -q "# divergenze: 0" <<<"$out"; then ok "G7 sonde di conformita' eseguite sulla catena (0 divergenze sul mock)"
+else ko "G7 sonde di conformita' (rc=$rc)" "$out"; fi
 
 start $PB --fail "$FB1" || exit 1
 r=$(ask $PB "{\"model\":\"auto\",$HI}")
