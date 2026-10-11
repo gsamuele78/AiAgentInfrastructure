@@ -593,6 +593,16 @@ else
   ko "TC-13: decisioni hw/OS rosse" "$(printf '%s' "$POUT" | grep '✗' | head -5)"
 fi
 
+sec "6c. Pratiche importate da OpenHands, offline (tests/agent-practices, ADR-0025)"
+# golden task sani, regole ask/deny misurate sul corpus, lint delle skill, deriva di
+# AGENTS.md, sonde e analizzatori. Niente rete ne' LLM; gira anche con SKIP_BEHAVIOR,
+# perche' le mutazioni RISK/SKILL/AGENTS del catalogo passano da qui.
+if AOUT=$(tests/agent-practices/run.sh 2>&1); then
+  ok "pratiche OpenHands: $(printf '%s' "$AOUT" | grep -o '✓ [0-9]*' | tail -1 | tr -d '✓ ') gruppi verdi"
+else
+  ko "pratiche OpenHands rosse" "$(printf '%s' "$AOUT" | grep '✗' | head -8)"
+fi
+
 sec "5. Coerenza documentazione"
 for f in $(grep -oE '\(([0-9]{4}-[a-z0-9-]+\.md)\)' docs/adr/README.md | tr -d '()'); do
   [ -f "docs/adr/$f" ] && ok "ADR $f indicizzato ed esistente" || ko "ADR $f mancante"

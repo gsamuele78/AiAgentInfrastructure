@@ -1,0 +1,47 @@
+name: agent-measure
+# Misure sul gateway VERO (ADR-0021, ADR-0025): runner self-hosted, mai da una PR
+# (repo pubblico: GITHUB-SETUP.md §4; test-scripts.sh lo verifica). Al posto del
+# servizio "automation" di OpenHands (cron e webhook che lanciano agenti) bastano un
+# cron e un dispatch di GitHub Actions: nessun servizio in piu' da mantenere.
+on:
+  workflow_dispatch:
+    inputs:
+      what:
+        description: "compliance | tasks | canary"
+        default: compliance
+      model:
+        description: "modello fisso per tasks/canary (ADR-0021)"
+        default: litellm/local-good
+      reps:
+        description: "ripetizioni per task"
+        default: "5"
+  schedule:
+    - cron: "30 6 * * 1"      # lunedi', dopo functional: sonde di conformita' settimanali
+permissions: { contents: read }
+concurrency:
+  group: agent-measure
+  cancel-in-progress: false
+
+jobs:
+  measure:
+    name: Misura (self-hosted)
+    runs-on: [self-hosted, linux, llm-gateway]
+    timeout-minutes: 120
+    env:
+      # virtual key con budget dedicata alle misure, MAI la master key (bench/*/PREREG.md)
+      BENCH_KEY: ${{ secrets.BENCH_KEY }}
+      LITELLM_MASTER_KEY: ${{ secrets.BENCH_KEY }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Sonde di conformita' API (settimanali, non bloccanti finche' C1 = 0)
+        if: github.event_name == 'schedule' || inputs.what == 'compliance'
+        run: python3 bench/compliance/probe.py --out "bench/results/compliance-$(date -u +%Y%m%d).tsv" || [ $? = 2 ]
+      - name: Golden task (M1/M2)
+        if: inputs.what == 'tasks'
+        run: bench/tasks/run.sh --model "${{ inputs.model }}" --reps "${{ inputs.reps }}"
+      - name: Canarino dei segreti
+        if: inputs.what == 'canary'
+        run: bench/secret-canary/measure.sh --model "${{ inputs.model }}" --reps "${{ inputs.reps }}"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 (v7.0.2 ha 3 giorni: cooldown ADR-0020)
+        if: always()
+        with: { name: bench-results, path: bench/results/, if-no-files-found: ignore, retention-days: 90 }
