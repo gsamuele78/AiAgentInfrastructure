@@ -24,7 +24,8 @@ PG=SuperS3cretPg99
 MK=sk-litellm-master-0000111122223333
 cat > "$H/.config/opencode/opencode.jsonc" <<J
 { "provider": { "or": { "options": { "baseURL": "http://127.0.0.1:8787/v1", "apiKey": "$OR" } } },
-  "mcp": { "fetch": { "environment": { "API_KEY": "example-key" } } } }
+  "mcp": { "fetch": { "environment": { "API_KEY": "example-key" } } },
+  "stats": { "avg_token_reduction": 0.12345678901234567, "firstTokenDate": "2026-06-23T10:11:12.345Z" } }
 J
 chmod 644 "$H/.config/opencode/opencode.jsonc"
 printf 'model_provider="headroom"\n[model_providers.headroom]\nbase_url="http://127.0.0.1:8787/v1"\nexperimental_bearer_token="%s"\n' "$AN" > "$H/.codex/config.toml"
@@ -64,6 +65,7 @@ done
 n=$(grep -c "\`$(printf %s "$OR" | sha256sum | cut -c1-8)\`" "$R")
 [ "$n" = 3 ] && ok "stessa chiave OpenRouter riconosciuta in 3 file (stessa impronta)" || ko "impronta OpenRouter in $n file (attesi 3: opencode, bashrc, unit)"
 grep -q 'example-key' "$R" && ko "segnaposto contato come chiave" || ok "i segnaposto (example-key) non sono chiavi"
+grep -qiE '\| (avg_token_reduction|firsttokendate) \|' "$R" && ko "numeri o date contati come chiavi" "$(grep -iE 'avg_token|firsttoken' "$R")" || ok "numeri e date non sono chiavi (falsi positivi del primo host vero)"
 grep -q 'opencode.jsonc` | 644 ⚠️' "$R" && ok "permessi larghi segnalati" || ko "644 non segnalato"
 grep -q 'http://127.0.0.1:8787' "$R" && ok "endpoint headroom :8787 elencato" || ko "endpoint :8787 mancante"
 grep -q 'vecchia-vm' "$R" && ok "VM libvirt elencata" || ko "VM non elencata"

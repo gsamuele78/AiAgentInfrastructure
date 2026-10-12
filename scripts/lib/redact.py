@@ -60,9 +60,16 @@ def tag(kind: str, v: str) -> str:
     return f"«REDATTO:{kind} fp={fp(v)} len={len(v)}»"
 
 
+# Non sono segreti: numeri (anche decimali/esponenziali) e date ISO. Sul primo
+# host vero i contatori di headroom (avg_token_reduction: 0.1234...) erano 1150
+# falsi positivi su 1190 righe.
+NUMERIC_RE = re.compile(r"-?\d+(\.\d+)?([eE][-+]?\d+)?")
+DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}([tT ][\d:.]+)?(z|[+-]\d{2}:?\d{2})?")
+
+
 def is_placeholder(v: str) -> bool:
     lv = v.lower().strip()
-    return (lv in PLACEHOLDERS or lv.isdigit() or lv.startswith(("$", "os.environ/", "{env:", "<", "env:", "%"))
+    return (lv in PLACEHOLDERS or NUMERIC_RE.fullmatch(lv) is not None or DATE_RE.fullmatch(lv) is not None or lv.startswith(("$", "os.environ/", "{env:", "<", "env:", "%"))
             or lv.startswith(("http://", "https://", "/", "~", "./")) or set(lv) <= set("x*-_.")
             or "example" in lv)
 

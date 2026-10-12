@@ -1,10 +1,9 @@
 # STATO VERIFICATO dell'host di lavoro (base della migrazione)
 
-> **Da rifare prima di toccare l'host.** Questa fotografia usa percorsi Debian
-> (`/var/lib/postgresql/17/main`, `postgresql@17-main`), ma l'host oggi è
-> Bazzite (ostree): può essere superata. Va confermata con
-> `./scripts/audit-host.sh --backup` (sola lettura, chiavi oscurate nel
-> report) prima di lanciare `cleanup-host.sh`.
+> **Riconfermato il 2026-10-12** con `./scripts/audit-host.sh` sull'host
+> (Debian 13): headroom :8787 → OpenRouter, litellm pipx 1.89.3 fermo,
+> postgres 17 attivo, opencode :3000, mem0 non agganciato, DavMail. Prima di
+> pulire, rilancialo: la fotografia invecchia.
 
 Non assunzioni: check eseguiti sul sistema reale.
 

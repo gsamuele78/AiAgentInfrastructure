@@ -210,7 +210,7 @@ blk "vagrant: ambienti noti (cache, non verificata)" vagrant global-status
 blk "vagrant: box" vagrant box list
 blk "vagrant: plugin" vagrant plugin list
 blk "Vagrantfile nella home (profondità 4)" sh -c "find '$HOME' -maxdepth 4 \( -name .cache -o -name .local -o -name node_modules \) -prune -o -name Vagrantfile -print 2>/dev/null | head -20"
-w "Licenza: Vagrant è BUSL dal 2023 (ADR-0022, scartato): da dismettere, non da migrare."
+w "Vagrant: upstream è BUSL dal 2.3.8 (ADR-0022, scartato). Il pacchetto Debian (2.3.7+git, \"2.3.8.dev\") è l'ultimo MPL ma è congelato: da dismettere, non da migrare."
 
 # ------------------------------------------------------------ disco
 h "9. Spazio occupato"
