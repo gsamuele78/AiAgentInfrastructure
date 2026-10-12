@@ -44,3 +44,6 @@ TC-13 json booleano come stringa	✗	tests/platform/run.sh	sed -i 's/BOOL = {"at
 ADR-0024 sudo nello strato S3	ADR-0024	./scripts/test-scripts.sh	sed -i 's|  install -m 755 "$UT_CACHE/$f" "$dest"|  sudo install -m 755 "$UT_CACHE/$f" "$dest"|' scripts/lib/user-tools.sh
 ADR-0024 postinstall permessi a tutti	ADR-0024	./scripts/test-scripts.sh	sed -i 's|allow_builds = \["opencode-ai"\]|npm_args = "--ignore-scripts=false"|' scripts/lib/user-tools.sh
 ADR-0024 ripiego silenzioso	ADR-0024	./scripts/test-scripts.sh	sed -i '/RIPIEGO sullo script/d' scripts/install-user-tools.sh
+AUDIT chiavi non oscurate	SEGRETI NEL REPORT	tests/audit-host/run.sh	sed -i 's/^    return outside_tags(line, KV_RE, kv)$/    return line/; s/^    line = PREFIX_RE.sub(pre, line)$/    pass/' scripts/lib/redact.py
+AUDIT backup leggibile da altri	archivio assente o permessi sbagliati	tests/audit-host/run.sh	sed -i 's/^  chmod 600 "\$ARC"$/  chmod 644 "$ARC"/; s/( umask 077; tar -czf/( umask 022; tar -czf/' scripts/audit-host.sh
+AUDIT tocca la HOME	l'audit ha modificato la	tests/audit-host/run.sh	sed -i 's/^export UV_CACHE_DIR="\$SCRATCH\/uv" /export /' scripts/audit-host.sh

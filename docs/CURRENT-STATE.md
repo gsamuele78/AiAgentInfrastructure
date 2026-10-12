@@ -1,5 +1,11 @@
 # STATO VERIFICATO dell'host di lavoro (base della migrazione)
 
+> **Da rifare prima di toccare l'host.** Questa fotografia usa percorsi Debian
+> (`/var/lib/postgresql/17/main`, `postgresql@17-main`), ma l'host oggi è
+> Bazzite (ostree): può essere superata. Va confermata con
+> `./scripts/audit-host.sh --backup` (sola lettura, chiavi oscurate nel
+> report) prima di lanciare `cleanup-host.sh`.
+
 Non assunzioni: check eseguiti sul sistema reale.
 
 > **La migrazione non è ancora avvenuta.** Questo documento fotografa l'host
