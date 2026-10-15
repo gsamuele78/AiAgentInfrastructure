@@ -30,5 +30,6 @@ una decisione non si modifica, si crea un nuovo ADR che la **supersede**.
 | [0023](0023-llm-locale-deciso-dall-hardware-con-rollback.md) | LLM locale: l'hardware sceglie fra i modelli del gateway; install verificata, annullabile, rimovibile | Accepted |
 | [0024](0024-mise-per-gli-strumenti-utente-misurato.md) | mise gestisce lo strato S3 (Node, opencode, tool Python), script come ripiego; scelto per misura | Accepted |
 | [0025](0025-pratiche-openhands-importate-con-misura.md) | Pratiche OpenHands importate (test a tier, mock LLM, sonde, corpus di rischio, lint), ognuna con la sua misura | Proposed |
+| [0026](0026-pin-bump-con-mise-per-i-pin-fuori-da-dependabot.md) | pin-bump: mise propone gli aggiornamenti dei pin di `versions.conf` che Dependabot non sa leggere | Proposed |
 
 Template: `_template.md`. Regole in `CONTRIBUTING.md`.

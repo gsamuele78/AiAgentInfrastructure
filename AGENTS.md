@@ -80,6 +80,7 @@ attenzione continua.
 ./scripts/detect-hardware.sh --emit-config
 ./scripts/detect-hardware.sh --json        # fatti hw/OS per gli script che decidono (P2)
 ./scripts/install-user-tools.sh --check    # Node/opencode/graphify == pin (mise, ripiego script; ADR-0024)
+./scripts/bump-pins.sh --dry-run           # pin di versions.conf che mise aggiornerebbe (pin-bump.yml, ADR-0026)
 ./scripts/create-vm.sh                # VM riproducibile (cloud-init)
 ./scripts/sync_openrouter.py --dry-run  # catalogo OpenRouter nel DB (OPENROUTER-SYNC.md)
 ./scripts/setup-ollama.sh --plan      # cosa regge l'hardware (nessuna modifica)
@@ -157,6 +158,7 @@ python3 bench/compliance/probe.py --dry-run   # 8 storie malformate per ogni lan
 | regole ask/deny glob "verificate" sul corpus con cui sono state scritte | 100 % sul corpus, 10 % su varianti nuove (`rm -vrf`, `bash <(curl …)`) | misura sempre anche `heldout.txt`; un mancato si sposta nel corpus solo con nuovi casi tenuti da parte (ADR-0025) |
 | campo vuoto letto con `read -r A B` | i valori slittano: un modello muto risultava "risponde" | segnaposto esplicito (`-`) per il vuoto; scenario 6 di `tests/setup-ollama` |
 | PR di Dependabot su `stack/` rossa | `test-scripts.sh` §3: "pin dei client diversi da stack/" | **voluto**: i client ripetono la versione letterale; allineali nella stessa PR (per Serena: rileggi `memory_tools.py`) |
+| PR di pin-bump senza check | le PR aperte da `GITHUB_TOKEN` non avviano `validate.yml` | voluto (regola di GitHub): il workflow lancia la CI sul ramo `bot/pin-bump`, guarda quei run (ADR-0026) |
 | verifica di `deploy-all.sh` con `\|\| true` | uno stack rosso arrivava alla baseline (fase 8) come se fosse verde | la fase 7 raccoglie gli esiti ed esce 1; `test-scripts.sh` §3 lo verifica |
 | `./backup-db.sh` lanciato nella VM | `No such file`: lo script sta in `scripts/`, nella VM si copia solo `services/` | copialo esplicitamente (`DEPLOY-RUNBOOK.md` passo 3) |
 

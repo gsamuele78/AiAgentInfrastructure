@@ -1,7 +1,7 @@
 # stack/components.toml — cosa compone lo stack (ADR-0017), sottoinsieme P1.
 #
 # Differenza voluta dallo schema di ADR-0017: qui NON c'e' un campo `version`.
-# La versione vive in UN posto solo, quello che Dependabot legge (`pin`); un
+# La versione vive in UN posto solo, quello che il bot legge (`pin`); un
 # secondo numero qui sarebbe una seconda verita'. `stack.py` (P3) leggera' la
 # versione da `pin`. I campi `probe`, `health`, `files`, `rollback` arrivano con P3.
 #
@@ -9,7 +9,8 @@
 #   layer    ADR-0006 (gateway, storage, compressione, tooling-codice, mcp, skill, agente, ci, runtime)
 #   scope    vm · host · client · biome · ci
 #   pin      file che contiene la versione, oppure "none" (motivo in `note`)
-#   tracked  il pin e' letto da Dependabot (true/false) — misura di P1
+#   tracked  il pin e' letto da un bot che apre la PR (true/false) — misura di P1:
+#            Dependabot, oppure pin-bump per stack/versions.conf (mise, ADR-0026)
 #   key      nome del pacchetto/immagine dentro `pin` (per il controllo di coerenza)
 #
 # test-scripts.sh §3 verifica: ogni `pin` esiste e contiene `key`; nessun
@@ -228,9 +229,9 @@ scope = "host"
 required = false
 pin = "stack/versions.conf"
 key = "OLLAMA_VERSION"
-tracked = false
-adr = ["0008", "0018"]
-note = "installer upstream con OLLAMA_VERSION pinnato; Dependabot non lo legge: aggiornamento manuale"
+tracked = true
+adr = ["0008", "0018", "0026"]
+note = "installer upstream con OLLAMA_VERSION pinnato; pin-bump (# bump: github:ollama/ollama) propone la PR, il cambio di modello va guardato a mano"
 
 [[component]]
 id = "headroom-host"
@@ -250,9 +251,9 @@ scope = "host"
 required = true
 pin = "stack/versions.conf"
 key = "NODE_VERSION"
-tracked = false
-adr = ["0018", "0024"]
-note = "Dependabot non legge versions.conf: aggiornamento a mano col cooldown di ADR-0020"
+tracked = true
+adr = ["0018", "0024", "0026"]
+note = "pin-bump propone la PR (# bump: node@24): resta sulla LTS 24, cooldown di ADR-0020"
 
 [[component]]
 id = "mise"
@@ -261,9 +262,9 @@ scope = "host"
 required = true
 pin = "stack/versions.conf"
 key = "MISE_VERSION"
-tracked = false
-adr = ["0024"]
-note = "binario della release GitHub, sha256 da SHASUMS256.txt; aggiornamento a mano"
+tracked = true
+adr = ["0024", "0026"]
+note = "binario della release GitHub, sha256 da SHASUMS256.txt; pin-bump propone la PR (# bump: github:jdx/mise)"
 
 [[component]]
 id = "actions-checkout"

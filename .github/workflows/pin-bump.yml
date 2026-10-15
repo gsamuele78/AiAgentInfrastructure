@@ -1,0 +1,86 @@
+# pin-bump — ADR-0026. Il "Dependabot" dei pin che Dependabot non sa leggere
+# (stack/versions.conf: Node, mise, Ollama). La versione la sceglie mise con il
+# cooldown di ADR-0020 (scripts/bump-pins.sh); qui si apre la PR, come fa
+# Dependabot. Propone, non rilascia: la merge resta manuale (ADR-0010).
+#
+# Due modalita':
+#   pull_request (file del bump toccati) -> solo --dry-run, permessi in lettura:
+#     prova che ogni `# bump:` si risolve davvero, con la rete vera.
+#   schedule / workflow_dispatch -> scrive, push sul ramo bot/pin-bump, PR.
+#
+# Le PR aperte con GITHUB_TOKEN NON avviano i workflow `pull_request` (regola di
+# GitHub contro i cicli). Per questo il job lancia validate.yml e bench-install.yml
+# sul ramo con workflow_dispatch, che con GITHUB_TOKEN invece funziona.
+# Serve l'impostazione del repo "Allow GitHub Actions to create and approve pull
+# requests" (docs/GITHUB-SETUP.md §4c): senza, il passo della PR fallisce rosso.
+name: pin-bump
+on:
+  schedule:
+    - cron: "30 5 * * 1"      # lunedi', dopo Dependabot (05:00): stessa cadenza
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/bump-pins.sh
+      - stack/versions.conf
+      - .github/workflows/pin-bump.yml
+permissions: { contents: read }
+
+jobs:
+  dry-run:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: mise al pin, verificato (sha256)
+        run: |
+          . scripts/lib/user-tools.sh; ut_pins
+          ut_mise_bootstrap "$UT_MISE" "$RUNNER_TEMP/mise"
+      - name: ogni `# bump:` si risolve (nessuna scrittura)
+        env: { MISE_BIN: "${{ runner.temp }}/mise", GITHUB_TOKEN: "${{ github.token }}" }
+        run: scripts/bump-pins.sh --dry-run
+
+  bump:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write        # push del ramo bot/pin-bump
+      pull-requests: write   # apertura della PR
+      actions: write         # validate.yml / bench-install.yml sul ramo
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GITHUB_TOKEN: ${{ github.token }}   # mise: API GitHub senza limite anonimo
+      BRANCH: bot/pin-bump
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: mise al pin, verificato (sha256)
+        run: |
+          . scripts/lib/user-tools.sh; ut_pins
+          ut_mise_bootstrap "$UT_MISE" "$RUNNER_TEMP/mise"
+      - name: bump
+        id: bump
+        env: { MISE_BIN: "${{ runner.temp }}/mise" }
+        run: |
+          scripts/bump-pins.sh | tee "$RUNNER_TEMP/bump.txt"
+          if git diff --quiet; then echo "changed=0" >> "$GITHUB_OUTPUT"; else echo "changed=1" >> "$GITHUB_OUTPUT"; fi
+      - name: ramo, PR e CI sul ramo
+        if: steps.bump.outputs.changed == '1'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$BRANCH"
+          git commit -qam "chore(deps): pin di stack/versions.conf (pin-bump, ADR-0026)"
+          git push -f origin "$BRANCH"
+          {
+            echo 'Aggiornamento proposto da `scripts/bump-pins.sh` (ADR-0026), cooldown 7 giorni.'
+            echo; echo '```'; cat "$RUNNER_TEMP/bump.txt"; echo '```'; echo
+            echo "La CI e' lanciata sul ramo \`$BRANCH\` con workflow_dispatch: le PR aperte da GITHUB_TOKEN non la avviano da sole. Guarda i run di validate e bench-install su quel ramo prima di unire."
+          } > "$RUNNER_TEMP/body.md"
+          if [ -z "$(gh pr list --head "$BRANCH" --state open --json number -q '.[].number')" ]; then
+            gh pr create --base main --head "$BRANCH" --title "chore(deps): pin di stack/versions.conf (pin-bump)" --body-file "$RUNNER_TEMP/body.md"
+          else
+            gh pr edit "$BRANCH" --body-file "$RUNNER_TEMP/body.md"
+          fi
+          gh workflow run validate.yml --ref "$BRANCH"
+          gh workflow run bench-install.yml --ref "$BRANCH"

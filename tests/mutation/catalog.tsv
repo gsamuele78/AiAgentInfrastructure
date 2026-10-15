@@ -53,3 +53,7 @@ OH stessa skill in due cartelle	SKILL S2	./scripts/test-scripts.sh	for d in .age
 OH AGENTS.md cita un comando inesistente	AGENTS A1	./scripts/test-scripts.sh	sed -i 's|./scripts/restore-test.sh |./scripts/restore-tests.sh |' AGENTS.md
 OH golden task t02 non controlla piu' cache_control	V3 soluzione sbagliata promossa	./scripts/test-scripts.sh	sed -i '/cache_control_injection_points/d' bench/tasks/t02-lane-nuova/check.sh
 OH early stopper che non ferma	E1 non fermato	./scripts/test-scripts.sh	sed -i 's/^\( *\)reason = check_event(ev, rules)$/\1reason = None/' bench/tasks/lib/early_stop.py
+P1 bump-pins torna indietro	ADR-0026	./scripts/test-scripts.sh	sed -i 's/^    elif newer "$cur" "$new"; then$/    elif [ "$cur" != "$new" ]; then/' scripts/bump-pins.sh
+P1 bump-pins scrive in dry-run	ADR-0026	./scripts/test-scripts.sh	sed -i '/\[dry-run\] \$changes pin da aggiornare/d' scripts/bump-pins.sh
+P1 bump-pins scrive con spec rotta	ADR-0026	./scripts/test-scripts.sh	sed -i '/spec non risolte: \$CONF non toccato/d' scripts/bump-pins.sh
+P1 Node tracked senza bump	components.toml	./scripts/test-scripts.sh	sed -i 's/^NODE_VERSION=\([^ ]*\) .*/NODE_VERSION=\1/' stack/versions.conf
