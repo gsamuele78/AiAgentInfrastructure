@@ -1,0 +1,4 @@
+services:
+  litellm: { image: example/litellm, depends_on: [db] }
+  db: { image: postgres:16.15-alpine, volumes: [pgdata:/var/lib/postgresql/data] }
+volumes: { pgdata: {} }

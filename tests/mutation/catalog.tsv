@@ -47,3 +47,9 @@ P1 audit ignora la deriva di headroom	deriva di headroom	./scripts/test-scripts.
 ADR-0024 sudo nello strato S3	ADR-0024	./scripts/test-scripts.sh	sed -i 's|  install -m 755 "$UT_CACHE/$f" "$dest"|  sudo install -m 755 "$UT_CACHE/$f" "$dest"|' scripts/lib/user-tools.sh
 ADR-0024 postinstall permessi a tutti	ADR-0024	./scripts/test-scripts.sh	sed -i 's|allow_builds = \["opencode-ai"\]|npm_args = "--ignore-scripts=false"|' scripts/lib/user-tools.sh
 ADR-0024 ripiego silenzioso	ADR-0024	./scripts/test-scripts.sh	sed -i '/RIPIEGO sullo script/d' scripts/install-user-tools.sh
+OH regola ask git push --force tolta da opencode	RISK	./scripts/test-scripts.sh	sed -i '/"git push --force\*": "ask",/d' clients/opencode.jsonc
+OH regola ask rm -r tolta da Claude Code	RISK	./scripts/test-scripts.sh	python3 -c "import json;p='clients/claude-settings.json';c=json.load(open(p));c['permissions']['ask'].remove('Bash(rm -r*)');open(p,'w').write(json.dumps(c,indent=2))"
+OH stessa skill in due cartelle	SKILL S2	./scripts/test-scripts.sh	for d in .agents/skills .claude/skills; do mkdir -p $d/adr && printf -- '---\nname: adr\ndescription: x\n---\n' > $d/adr/SKILL.md; done
+OH AGENTS.md cita un comando inesistente	AGENTS A1	./scripts/test-scripts.sh	sed -i 's|./scripts/restore-test.sh |./scripts/restore-tests.sh |' AGENTS.md
+OH golden task t02 non controlla piu' cache_control	V3 soluzione sbagliata promossa	./scripts/test-scripts.sh	sed -i '/cache_control_injection_points/d' bench/tasks/t02-lane-nuova/check.sh
+OH early stopper che non ferma	E1 non fermato	./scripts/test-scripts.sh	sed -i 's/^\( *\)reason = check_event(ev, rules)$/\1reason = None/' bench/tasks/lib/early_stop.py
