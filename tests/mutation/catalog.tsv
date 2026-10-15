@@ -15,7 +15,7 @@ P1 bump Dependabot solo in stack/	pin dei client	./scripts/test-scripts.sh	sed -
 P1 npx senza versione	HC-07	./scripts/test-scripts.sh	sed -i 's|"firecrawl-mcp@3.27.3"|"firecrawl-mcp"|' clients/opencode.jsonc
 P1 bump firecrawl solo in package.json	pin dei client	./scripts/test-scripts.sh	sed -i 's|"firecrawl-mcp": "3.27.3"|"firecrawl-mcp": "3.28.0"|' stack/package.json
 P1 Codex su git HEAD	HC-07	./scripts/test-scripts.sh	sed -i 's|"serena-agent==1.7.0"|"git+https://github.com/oraios/serena"|' clients/codex-config.toml
-P1 FROM senza digest	HC-07	./scripts/test-scripts.sh	sed -i 's|^FROM ghcr.io/berriai/litellm-database:v1.104.2@sha256:[0-9a-f]*|FROM ghcr.io/berriai/litellm-database:v1.104.2|' services/Dockerfile
+P1 FROM senza digest	HC-07	./scripts/test-scripts.sh	sed -i -E 's|^(FROM ghcr.io/berriai/litellm-database:[^@ ]+)@sha256:[0-9a-f]+|\1|' services/Dockerfile
 P1 FROM con ARG	HC-07	./scripts/test-scripts.sh	sed -i 's|^FROM ghcr.io/berriai/litellm-database:.*|FROM ghcr.io/berriai/litellm-database:${LITELLM_IMAGE_TAG}|' services/Dockerfile
 P1 postgres tag mobile	HC-07	./scripts/test-scripts.sh	sed -i 's/postgres:16.15-alpine/postgres:16-alpine/' services/docker-compose.yml
 P1 vLLM da variabile	HC-07	./scripts/test-scripts.sh	sed -i 's|image: vllm/vllm-openai:v0.30.0|image: "vllm/vllm-openai:${VLLM_TAG:-latest}"|' services-biome/docker-compose.yml
@@ -41,6 +41,9 @@ TC-13 pkg_add senza journal	✗	tests/platform/run.sh	sed -i '/senza journal_beg
 TC-13 svc_render riscrive sempre	✗	tests/platform/run.sh	sed -i 's/\[ "$new" = "$old" \] \&\& { echo "  $dst: invariato"/false \&\& { echo "  $dst: invariato"/' scripts/lib/platform.sh
 TC-13 driver deciso da un sandbox	✗	tests/platform/run.sh	sed -i '/sandbox $sb: lo stato del driver si vede solo/d' scripts/lib/platform.sh
 TC-13 json booleano come stringa	✗	tests/platform/run.sh	sed -i 's/BOOL = {"atomic", "ublue",/BOOL = {"atomic",/' scripts/detect-hardware.sh
+P1 fetch torna alla build locale	pin senza consumatore	./scripts/test-scripts.sh	sed -i 's|"npx","-y","mcp-fetch-server@1.1.2"|"node","{env:HOME}/.local/share/mcp/fetch-mcp/dist/index.js"|' clients/opencode.jsonc
+P1 bump fetch solo in package.json	pin dei client	./scripts/test-scripts.sh	sed -i 's|"mcp-fetch-server": "1.1.2"|"mcp-fetch-server": "1.2.0"|' stack/package.json
+P1 audit ignora la deriva di headroom	deriva di headroom	./scripts/test-scripts.sh	sed -i 's/    else: L("WARN",f"headroom sull/    else: L("PASS",f"headroom sull/' scripts/audit-integration.py
 ADR-0024 sudo nello strato S3	ADR-0024	./scripts/test-scripts.sh	sed -i 's|  install -m 755 "$UT_CACHE/$f" "$dest"|  sudo install -m 755 "$UT_CACHE/$f" "$dest"|' scripts/lib/user-tools.sh
 ADR-0024 postinstall permessi a tutti	ADR-0024	./scripts/test-scripts.sh	sed -i 's|allow_builds = \["opencode-ai"\]|npm_args = "--ignore-scripts=false"|' scripts/lib/user-tools.sh
 ADR-0024 ripiego silenzioso	ADR-0024	./scripts/test-scripts.sh	sed -i '/RIPIEGO sullo script/d' scripts/install-user-tools.sh
@@ -48,3 +51,9 @@ AUDIT chiavi non oscurate	SEGRETI NEL REPORT	tests/audit-host/run.sh	sed -i 's/^
 AUDIT backup leggibile da altri	archivio assente o permessi sbagliati	tests/audit-host/run.sh	sed -i 's/^  chmod 600 "\$ARC"$/  chmod 644 "$ARC"/; s/( umask 077; tar -czf/( umask 022; tar -czf/' scripts/audit-host.sh
 AUDIT tocca la HOME	l'audit ha modificato la	tests/audit-host/run.sh	sed -i 's/^export UV_CACHE_DIR="\$SCRATCH\/uv" /export /' scripts/audit-host.sh
 AUDIT numeri contati come chiavi	numeri o date contati come chiavi	tests/audit-host/run.sh	sed -i 's/or NUMERIC_RE.fullmatch(lv) is not None or DATE_RE.fullmatch(lv) is not None or/or/' scripts/lib/redact.py
+OH regola ask git push --force tolta da opencode	RISK	./scripts/test-scripts.sh	sed -i '/"git push --force\*": "ask",/d' clients/opencode.jsonc
+OH regola ask rm -r tolta da Claude Code	RISK	./scripts/test-scripts.sh	python3 -c "import json;p='clients/claude-settings.json';c=json.load(open(p));c['permissions']['ask'].remove('Bash(rm -r*)');open(p,'w').write(json.dumps(c,indent=2))"
+OH stessa skill in due cartelle	SKILL S2	./scripts/test-scripts.sh	for d in .agents/skills .claude/skills; do mkdir -p $d/adr && printf -- '---\nname: adr\ndescription: x\n---\n' > $d/adr/SKILL.md; done
+OH AGENTS.md cita un comando inesistente	AGENTS A1	./scripts/test-scripts.sh	sed -i 's|./scripts/restore-test.sh |./scripts/restore-tests.sh |' AGENTS.md
+OH golden task t02 non controlla piu' cache_control	V3 soluzione sbagliata promossa	./scripts/test-scripts.sh	sed -i '/cache_control_injection_points/d' bench/tasks/t02-lane-nuova/check.sh
+OH early stopper che non ferma	E1 non fermato	./scripts/test-scripts.sh	sed -i 's/^\( *\)reason = check_event(ev, rules)$/\1reason = None/' bench/tasks/lib/early_stop.py

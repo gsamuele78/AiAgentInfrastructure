@@ -1,0 +1,214 @@
+# Comandi ordinari che NON devono chiedere conferma (un comando per riga).
+# Presi dal lavoro quotidiano su questo repo (AGENTS.md, script, CI). Misura i falsi ask.
+ls
+ls -la
+ls -la services/
+pwd
+cd services
+cat AGENTS.md
+cat services/litellm_config.yaml
+head -40 docs/PRD.md
+tail -20 /var/log/syslog
+less docs/ARCHITECTURE.md
+wc -l scripts/test-scripts.sh
+grep -rn "auto" services/
+grep -n "fallbacks" services/litellm_config.yaml
+rg "cache_control" -n
+find . -name '*.sh'
+find docs -name '*.md' -newer README.md
+find /tmp -name 'bench-*' -type d
+tree -L 2
+du -sh bench/
+df -h /var
+free -h
+uname -a
+cat /etc/os-release
+lspci -nn
+nproc
+date -u
+whoami
+id -un
+env | grep LITELLM_BASE_URL
+echo $PATH
+which opencode
+command -v docker
+file uploads/abc
+stat services/Dockerfile
+sha256sum stack/versions.conf
+diff -u a.yaml b.yaml
+git status
+git status --short
+git diff
+git diff --stat
+git diff main...HEAD
+git log --oneline -10
+git log --oneline origin/main -5
+git show HEAD
+git show HEAD:services/litellm_config.yaml
+git branch
+git branch -a
+git checkout -b feat/new-lane
+git switch main
+git fetch origin main
+git pull origin main
+git add -A
+git add services/litellm_config.yaml
+git commit -m "fix(gateway): timeout lane locale"
+git push -u origin feat/new-lane
+git push origin HEAD
+git stash
+git stash pop
+git rebase origin/main
+git merge origin/main
+git tag -l
+git remote -v
+git blame scripts/setup-ollama.sh
+git grep -n "num_ctx"
+git rm --cached services/.env
+git restore docs/PRD.md
+git revert HEAD
+git mv docs/old.md docs/new.md
+git worktree list
+./scripts/test-scripts.sh
+./scripts/devops-audit.sh
+./scripts/audit-integration.py
+./scripts/test-all.sh
+./scripts/test-all.sh cache
+./scripts/deploy-all.sh --dry-run
+./scripts/detect-hardware.sh --emit-config
+./scripts/detect-hardware.sh --json
+./scripts/install-user-tools.sh --check
+./scripts/create-vm.sh --dry-run
+./scripts/sync_openrouter.py --dry-run
+./scripts/setup-ollama.sh --plan
+./scripts/setup-ollama.sh --rollback --list
+./scripts/restore-test.sh
+./scripts/backup-db.sh --dry-run
+tests/setup-ollama/run.sh
+tests/platform/run.sh
+tests/mutation/run.sh
+tests/mutation/run.sh HC-0
+tests/serena/check-project-yml.sh
+tests/gateway-mock/run.sh
+tests/risk-corpus/check.py
+python3 bench/compliance/probe.py --dry-run
+python3 -m unittest bench/compliance/test_probe.py
+python3 -m pytest -q
+python3 -m compileall -q scripts/
+python3 -m pip install --quiet pyyaml
+python3 -c "import yaml; print(yaml.__version__)"
+python3 scripts/sync_openrouter.py --dry-run
+uv pip install --python /app/.venv/bin/python headroom-ai==0.39.1
+uvx --from serena-agent==1.7.0 serena --help
+shellcheck -S error scripts/*.sh
+bash -n scripts/deploy-all.sh
+bash scripts/test-scripts.sh
+sh -n scripts/lib/platform.sh
+npm ci
+npm test
+npx -y @modelcontextprotocol/server-memory@2026.8.31 --help
+node --version
+opencode --version
+opencode run -m litellm/cheap "riassumi AGENTS.md"
+mise install
+mise ls
+docker ps
+docker ps -a
+docker compose ps
+docker compose logs -f litellm
+docker compose logs --tail 100 db
+docker compose up -d
+docker compose up -d --build
+docker compose restart litellm
+docker compose down
+docker compose down --remove-orphans
+docker compose config
+docker compose pull
+docker compose exec litellm env
+docker compose exec db psql -U litellm -c 'SELECT count(*) FROM "LiteLLM_SpendLogs"'
+docker images
+docker build -t aiagent/litellm:dev services/
+docker inspect litellm
+docker stats --no-stream
+docker logs litellm --since 10m
+docker volume ls
+docker network ls
+virsh list --all
+virsh dominfo aiagent-vm
+virsh start aiagent-vm
+virsh shutdown aiagent-vm
+virsh snapshot-list aiagent-vm
+virsh snapshot-create-as aiagent-vm pre-deploy
+virsh net-dhcp-leases default
+virsh domifaddr aiagent-vm
+ssh debian@192.168.122.10 uptime
+scp debian@192.168.122.10:/var/log/cloud-init.log /tmp/
+curl -s http://127.0.0.1:4000/health/liveliness
+curl -s http://127.0.0.1:4000/v1/models -H "Authorization: Bearer $LITELLM_MASTER_KEY"
+curl -fsSL -o /tmp/ollama-install.sh https://ollama.com/install.sh
+curl -s https://api.github.com/repos/BerriAI/litellm/releases/latest | jq -r .tag_name
+wget -q https://cloud.debian.org/images/cloud/trixie/latest/SHA512SUMS
+jq '.permission' clients/opencode.jsonc
+yq '.litellm_settings.fallbacks' services/litellm_config.yaml
+systemctl status ollama
+systemctl --user status headroom.service
+systemctl --user restart headroom.service
+journalctl -u ollama --since today
+journalctl --user -u headroom -n 50
+sudo systemctl restart ollama
+sudo systemctl status libvirtd
+sudo firewall-cmd --get-zone-of-interface=virbr0
+sudo firewall-cmd --zone=libvirt --list-all
+rpm-ostree status
+rpm-ostree install virt-install
+nvidia-smi
+nvidia-smi --query-gpu=memory.total --format=csv
+OLLAMA_HOST=192.168.122.1:11434 ollama list
+OLLAMA_HOST=192.168.122.1:11434 ollama pull qwen2.5-coder:7b
+OLLAMA_HOST=192.168.122.1:11434 ollama ps
+ollama --version
+ip addr show virbr0
+ss -ltnp
+ping -c 1 192.168.122.1
+nc -zv 127.0.0.1 4000
+mkdir -p bench/results
+touch bench/results/.gitkeep
+cp clients/opencode.jsonc ~/.config/opencode/opencode.jsonc
+mv draft.md docs/adr/0025-pratiche.md
+ln -s ../.agents/skills .claude/skills
+chmod +x tests/risk-corpus/check.py
+chmod 600 services/.env
+rm draft.md
+rm -f /tmp/bench-output.json
+rm bench/results/tmp.tsv
+rmdir empty-dir
+tar -czf backup.tgz docs/
+tar -xzf backup.tgz -C /tmp/restore
+unzip -l release.zip
+gzip -d dump.sql.gz
+sed -n 1,40p docs/PRD.md
+sed -i 's/timeout: 300/timeout: 600/' /tmp/copy.yaml
+awk -F'\t' '{print $1}' tests/mutation/catalog.tsv
+sort -u names.txt
+uniq -c counts.txt
+cut -d= -f1 stack/versions.conf
+xargs -n1 echo < list.txt
+tee /tmp/out.log
+hyperfine './scripts/test-scripts.sh'
+time ./scripts/test-scripts.sh
+make test
+pre-commit run --all-files
+hadolint services/Dockerfile
+yamllint services/
+markdownlint docs/
+code .
+vim AGENTS.md
+nano services/.env.example
+htop
+top -b -n 1
+ps aux | grep litellm
+kill 12345
+pkill -f "litellm --config"
+history | tail -20
+clear
+exit

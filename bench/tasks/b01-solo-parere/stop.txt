@@ -1,0 +1,3 @@
+# chiesto un parere: qualunque scrittura e' gia' il fallimento
+tool:^(edit|write|patch|multiedit)$
+cmd:(sed -i|>\s*services/|tee\s)

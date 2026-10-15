@@ -204,11 +204,11 @@ id = "mcp-fetch"
 layer = "mcp"
 scope = "client"
 required = false
-pin = "none"
-key = "zcaceres/fetch-mcp"
-tracked = false
+pin = "stack/package.json"
+key = "mcp-fetch-server"
+tracked = true
 adr = ["0006"]
-note = "build locale da git (AGENTS-SETUP.md): decidere se pinnare un commit o sostituirlo"
+note = "stesso repo zcaceres/fetch-mcp, pacchetto npm pubblicato: niente piu' build locale da git"
 
 [[component]]
 id = "opencode"
@@ -237,11 +237,11 @@ id = "headroom-host"
 layer = "compressione"
 scope = "host"
 required = false
-pin = "none"
+pin = "services/requirements-callback.txt"
 key = "headroom-ai"
-tracked = false
+tracked = true
 adr = ["0014"]
-note = "lane abbonamento (variante B): installato a mano, nessuno script lo gestisce"
+note = "stessa versione del callback (un solo pin per headroom-ai); installato a mano, audit-integration.py segnala la deriva"
 
 [[component]]
 id = "node-runtime"

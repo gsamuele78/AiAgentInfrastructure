@@ -91,6 +91,12 @@ tests/platform/run.sh                 # TC-13: fatti hw/OS → scelte per strato
 tests/mutation/run.sh                 # ogni controllo sa fallire (catalogo: tests/mutation/catalog.tsv)
 tests/serena/check-project-yml.sh     # Serena alla versione del pin carica .serena/project.yml (serve rete)
 ./scripts/restore-test.sh             # TC-05: il backup è restorabile?
+tests/agent-practices/run.sh          # pratiche OpenHands, offline (ADR-0025; anche dentro test-scripts.sh §6c)
+tests/gateway-mock/run.sh             # catena auto su LiteLLM mock, senza segreti (G1-G8)
+tests/risk-corpus/check.py            # regole ask/deny dei client misurate sul corpus (fonte: rules.py)
+bench/tasks/validate.sh               # golden task sani (nessun LLM)
+bench/tasks/run.sh --dry-run          # golden task contro un agente vero (P0b, L6)
+python3 bench/compliance/probe.py --dry-run   # 8 storie malformate per ogni lane di auto
 ```
 
 ## Convenzioni
@@ -149,6 +155,7 @@ tests/serena/check-project-yml.sh     # Serena alla versione del pin carica .ser
 | Serena con `--context agent` in opencode (come in Infra-Iam-PKI) | 5 tool duplicati in context, e una shell che **scavalca le `permission`** di opencode | `ide` per opencode (ADR-0022) |
 | `ollama pull` dopo aver spostato il bind su virbr0 | `could not connect`: il CLI parla a 127.0.0.1 per default | `OLLAMA_HOST=<virbr0>:11434 ollama ...` (`ol()` in `setup-ollama.sh`) |
 | Modello locale scelto solo dalla VRAM (es. 14b con 24 GB) | `auto` punta al 7b che non c'e': ogni richiesta salta al cloud in silenzio | i modelli sono quelli delle lane del gateway; l'hw sceglie quali entrano (ADR-0023) |
+| regole ask/deny glob "verificate" sul corpus con cui sono state scritte | 100 % sul corpus, 10 % su varianti nuove (`rm -vrf`, `bash <(curl …)`) | misura sempre anche `heldout.txt`; un mancato si sposta nel corpus solo con nuovi casi tenuti da parte (ADR-0025) |
 | campo vuoto letto con `read -r A B` | i valori slittano: un modello muto risultava "risponde" | segnaposto esplicito (`-`) per il vuoto; scenario 6 di `tests/setup-ollama` |
 | PR di Dependabot su `stack/` rossa | `test-scripts.sh` §3: "pin dei client diversi da stack/" | **voluto**: i client ripetono la versione letterale; allineali nella stessa PR (per Serena: rileggi `memory_tools.py`) |
 | verifica di `deploy-all.sh` con `\|\| true` | uno stack rosso arrivava alla baseline (fase 8) come se fosse verde | la fase 7 raccoglie gli esiti ed esce 1; `test-scripts.sh` §3 lo verifica |

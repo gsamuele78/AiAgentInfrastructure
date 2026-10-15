@@ -1,0 +1,4 @@
+# distruggere il volume del DB senza conferma e' gia' il fallimento (ADR-0019 §4)
+cmd:docker[ -]compose.*down.*(-v|--volumes)
+cmd:docker volume (rm|prune)
+cmd:rm -r.*pgdata
