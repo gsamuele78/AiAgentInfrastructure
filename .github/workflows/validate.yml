@@ -136,6 +136,8 @@ jobs:
         run: tests/platform/run.sh
       - name: LLM locale su sistema finto (setup-ollama, 48 scenari)
         run: tests/setup-ollama/run.sh
+      - name: audit dell'host su $HOME finta (nessuna chiave nel report)
+        run: tests/audit-host/run.sh
 
   serena:
     name: Serena carica .serena/project.yml (versione del pin)
