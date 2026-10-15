@@ -15,7 +15,7 @@ P1 bump Dependabot solo in stack/	pin dei client	./scripts/test-scripts.sh	sed -
 P1 npx senza versione	HC-07	./scripts/test-scripts.sh	sed -i 's|"firecrawl-mcp@3.27.3"|"firecrawl-mcp"|' clients/opencode.jsonc
 P1 bump firecrawl solo in package.json	pin dei client	./scripts/test-scripts.sh	sed -i 's|"firecrawl-mcp": "3.27.3"|"firecrawl-mcp": "3.28.0"|' stack/package.json
 P1 Codex su git HEAD	HC-07	./scripts/test-scripts.sh	sed -i 's|"serena-agent==1.7.0"|"git+https://github.com/oraios/serena"|' clients/codex-config.toml
-P1 FROM senza digest	HC-07	./scripts/test-scripts.sh	sed -i 's|^FROM ghcr.io/berriai/litellm-database:v1.104.2@sha256:[0-9a-f]*|FROM ghcr.io/berriai/litellm-database:v1.104.2|' services/Dockerfile
+P1 FROM senza digest	HC-07	./scripts/test-scripts.sh	sed -i -E 's|^(FROM ghcr.io/berriai/litellm-database:[^@ ]+)@sha256:[0-9a-f]+|\1|' services/Dockerfile
 P1 FROM con ARG	HC-07	./scripts/test-scripts.sh	sed -i 's|^FROM ghcr.io/berriai/litellm-database:.*|FROM ghcr.io/berriai/litellm-database:${LITELLM_IMAGE_TAG}|' services/Dockerfile
 P1 postgres tag mobile	HC-07	./scripts/test-scripts.sh	sed -i 's/postgres:16.15-alpine/postgres:16-alpine/' services/docker-compose.yml
 P1 vLLM da variabile	HC-07	./scripts/test-scripts.sh	sed -i 's|image: vllm/vllm-openai:v0.30.0|image: "vllm/vllm-openai:${VLLM_TAG:-latest}"|' services-biome/docker-compose.yml
