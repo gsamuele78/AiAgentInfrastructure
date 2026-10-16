@@ -15,9 +15,9 @@
 # I client ripetono le versioni letterali: una PR su stack/ e' ROSSA finche' non
 # si allineano i client (test-scripts.sh §3). Voluto: vedi stack/requirements-tools.txt.
 #
-# Cosa NON copre (stack/components.toml, `pin = "none"`): commit di
-# mattpocock/skills (P4), opencode e Ollama (script d'installazione upstream;
-# Ollama ha un pin in stack/versions.conf, aggiornato a mano), runtime Node (P2).
+# Cosa NON copre: commit di mattpocock/skills (P4, `pin = "none"`) e i pin di
+# stack/versions.conf (Node, mise, Ollama), che nessun ecosistema Dependabot
+# legge: li aggiorna pin-bump.yml con mise, stesso cooldown (ADR-0026).
 version: 2
 updates:
   - package-ecosystem: github-actions

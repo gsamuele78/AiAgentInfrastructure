@@ -204,8 +204,12 @@ for c in comps:
         if not c.get("note"): bad.append(f"{c['id']}: pin none senza motivo (note)")
     elif not pathlib.Path(c["pin"]).is_file(): bad.append(f"{c['id']}: {c['pin']} non esiste")
     elif c["key"] not in pathlib.Path(c["pin"]).read_text(): bad.append(f"{c['id']}: {c['key']} non in {c['pin']}")
+    # versions.conf non lo legge Dependabot: tracked solo se pin-bump ha la spec (ADR-0026)
+    elif c["tracked"] and c["pin"] == "stack/versions.conf" and not any(
+            l.startswith(c["key"] + "=") and "# bump:" in l for l in pathlib.Path(c["pin"]).read_text().splitlines()):
+        bad.append(f"{c['id']}: tracked ma {c['key']} senza '# bump:' in stack/versions.conf")
 tr = sum(1 for c in comps if c["tracked"])
-print(f"    misura P1: {tr}/{len(comps)} componenti con pin letto da Dependabot ({100*tr//len(comps)}%)")
+print(f"    misura P1: {tr}/{len(comps)} componenti con pin letto da un bot, Dependabot o pin-bump ({100*tr//len(comps)}%)")
 if bad: print("    " + "\n    ".join(bad)); sys.exit(1)
 PYX
   # Un pin che nessuno usa e' falso: Dependabot lo aggiorna e non cambia niente.
@@ -248,6 +252,33 @@ else ko "ADR-0024: postinstall npm non permessi per nome" "allow_builds = [\"ope
 grep -q 'RIPIEGO' "$UI" && grep -q "journal_undo \"echo 'questo run ha usato il ripiego script'\"" "$UI" \
   && ok "ADR-0024: il ripiego avvisa e si registra" \
   || ko "ADR-0024: ripiego silenzioso" "auto deve avvisare e scriverlo nel journal"
+
+# ADR-0026: bump-pins.sh (pin-bump.yml) con un mise finto. Riscrive solo le
+# righe `# bump:`, tiene il commento, mai all'indietro, --dry-run non scrive,
+# una spec non risolta lascia il file intatto ed esce 1.
+BPSTUB=$(mktemp -d)
+cat > "$BPSTUB/mise" <<'STUB'
+#!/bin/sh
+case "$2" in node@24) echo 24.99.0 ;; github:a/vecchio) echo v1.0.0 ;; *) exit 1 ;; esac
+STUB
+chmod +x "$BPSTUB/mise"
+printf 'A=1  # nessun bump\nNODE_VERSION=24.1.0  # bump: node@24\nOLD=2.0.0  # bump: github:a/vecchio\n' > "$BPSTUB/conf"
+cp "$BPSTUB/conf" "$BPSTUB/orig"
+MISE_BIN="$BPSTUB/mise" PINS_FILE="$BPSTUB/conf" scripts/bump-pins.sh --dry-run >/dev/null 2>&1; bp_dry=$?
+cmp -s "$BPSTUB/conf" "$BPSTUB/orig" && bp_dry_same=1 || bp_dry_same=0
+MISE_BIN="$BPSTUB/mise" PINS_FILE="$BPSTUB/conf" scripts/bump-pins.sh >/dev/null 2>&1; bp_rc=$?
+bp_out=$(cat "$BPSTUB/conf")
+printf 'NODE_VERSION=24.1.0  # bump: node@24\nX=1  # bump: non-esiste\n' > "$BPSTUB/bad"; cp "$BPSTUB/bad" "$BPSTUB/badorig"
+MISE_BIN="$BPSTUB/mise" PINS_FILE="$BPSTUB/bad" scripts/bump-pins.sh >/dev/null 2>&1; bp_bad=$?
+cmp -s "$BPSTUB/bad" "$BPSTUB/badorig" && bp_bad_same=1 || bp_bad_same=0
+rm -rf "$BPSTUB"
+if [ "$bp_dry" = 0 ] && [ "$bp_dry_same" = 1 ] && [ "$bp_rc" = 0 ] \
+   && [ "$bp_out" = "$(printf 'A=1  # nessun bump\nNODE_VERSION=24.99.0  # bump: node@24\nOLD=2.0.0  # bump: github:a/vecchio')" ] \
+   && [ "$bp_bad" = 1 ] && [ "$bp_bad_same" = 1 ]; then
+  ok "ADR-0026: bump-pins.sh aggiorna solo avanti, --dry-run e spec rotte non scrivono"
+else
+  ko "ADR-0026: bump-pins.sh si comporta male" "dry=$bp_dry/$bp_dry_same rc=$bp_rc bad=$bp_bad/$bp_bad_same; atteso NODE_VERSION=24.99.0, OLD fermo a 2.0.0"
+fi
 
 sec "4. Compose: validi e senza esposizioni indebite"
 # pyyaml puo' mancare su una macchina pulita: in quel caso SKIP, non FAIL.
@@ -373,6 +404,7 @@ else ok "deploy-all.sh: i passi della VM sono eseguiti, non stampati"; fi
 # terminali compresi, sono Flatpak.
 for b in $DRYRUN_SCRIPTS; do
   case "$b" in backup-db.sh|restore-test.sh) continue ;; esac  # girano NELLA VM
+  case "$b" in bump-pins.sh) continue ;; esac  # scrive solo stack/versions.conf del repo (CI, ADR-0026)
   grep -q 'sandbox_guard' "scripts/$b" && ok "$b si ferma se e' dentro un sandbox" \
     || ko "$b non controlla il sandbox" "da un Flatpak scriverebbe nel sandbox, non sull'host"
 done
