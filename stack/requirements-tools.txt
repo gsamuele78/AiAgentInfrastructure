@@ -8,4 +8,4 @@
 #   graphifyy: installato da scripts/install-user-tools.sh (mise pipx:, ripiego uv tool; ADR-0024).
 # Versioni scelte con lo stesso cooldown di ADR-0020 (>= 7 giorni dalla release).
 serena-agent==1.7.0
-graphifyy==0.9.76
+graphifyy==0.9.86
