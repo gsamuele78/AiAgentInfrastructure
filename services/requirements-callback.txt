@@ -2,4 +2,4 @@
 # come vincolo (`uv pip install -c`), cosi' HEADROOM_EXTRAS resta configurabile
 # ma la versione e' una sola. Dependabot (pip, directory /services) lo aggiorna;
 # la build fallisce subito se il callback non e' importabile (gate nel Dockerfile).
-headroom-ai==0.39.1
+headroom-ai==0.40.0
