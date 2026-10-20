@@ -115,6 +115,17 @@ una PR (repo pubblico + runner self-hosted, §4), quindi i test sulla catena rea
 restano un passo manuale prima della merge di aggiornamenti al runtime (LiteLLM,
 headroom-ai). Merge sempre manuale: stadio 0 della scala di ADR-0020.
 
+## 4c. pin-bump (ADR-0026)
+`.github/workflows/pin-bump.yml` aggiorna, il lunedì, i pin di
+`stack/versions.conf` che Dependabot non legge (Node, mise, Ollama) e apre una
+PR dal ramo `bot/pin-bump`. Per aprirla serve un interruttore da accendere a mano:
+**Settings → Actions → General → Workflow permissions → Allow GitHub Actions to
+create and approve pull requests**. Senza, il job fallisce rosso al passo della PR
+(il ramo viene comunque spinto). Le PR aperte da `GITHUB_TOKEN` non avviano
+`validate.yml`: il workflow lo lancia sul ramo con `workflow_dispatch`, quindi
+gli esiti si leggono in **Actions** filtrando per ramo `bot/pin-bump`. Per
+provarlo subito: **Actions → pin-bump → Run workflow**. Merge sempre manuale.
+
 ## 5. Flusso di lavoro
 
 ```bash

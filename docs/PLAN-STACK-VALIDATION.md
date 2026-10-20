@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Stato** | in corso · aggiornato 2026-10-10: P0 e Step 0 uniti (#8), P1 unito (#9, 19/25 pin tracciati, gate ✘ dichiarato), parte Ollama di P2/P3 unita (#10, ADR-0023). Restano P0b (serve il deploy), P2, P3 e oltre |
+| **Stato** | in corso · aggiornato 2026-10-15: P0 e Step 0 uniti (#8), P1 unito (#9, #16; 25/26 pin tracciati con pin-bump, ADR-0026), parte Ollama di P2/P3 unita (#10, ADR-0023). Restano P0b (serve il deploy), P2, P3 e oltre |
 | **ADR** | [0017](adr/0017-manifest-componenti-e-validatore-unico.md) manifest + validatore · [0018](adr/0018-installazione-idempotente-e-rollback-debian-bazzite.md) install/rollback Debian 13 + Bazzite · [0019](adr/0019-pratiche-openhands-skill-per-ruolo-e-serena.md) pratiche OpenHands, skill, Serena · [0020](adr/0020-dependabot-e-scala-di-autoaggiornamento.md) Dependabot · [0021](adr/0021-misurare-prima-di-adottare-e-oh-my-openagent.md) protocollo di misura, oh-my-openagent |
 | **Fatto** | P0: fix Serena, `dependabot.yml`, ADR 0017–0021 · P1: pin leggibili da Dependabot, `FROM` a digest · ADR-0023: LLM locale con rollback |
 | **Step 0** | allineamento con Infra-Iam-PKI: [matrice](ALIGNMENT-INFRA-IAM-PKI.md), [ADR-0022](adr/0022-standard-condiviso-con-infra-iam-pki.md); [runbook del primo deploy](DEPLOY-RUNBOOK.md) |
@@ -147,6 +147,13 @@ di ADR-0021: metrica, baseline, obiettivo **pre-registrato**. Un pacchetto è
     tutti con il motivo in `components.toml`. Il 90% (24/26) richiederebbe due
     di questi sotto un bot: realistico solo mattpocock con P4; per gli altri tre
     Dependabot non ha un ecosistema che li legga.
+- **P1 al 90 % con mise (ADR-0026)**: **25/26 (96 %)** ✔. Node, mise e Ollama
+  restano in `versions.conf`, ora con `# bump: <spec mise>`; `scripts/bump-pins.sh`
+  chiede a mise l'ultima versione con cooldown 7 giorni (mai all'indietro, Node
+  fermo sulla LTS 24) e `pin-bump.yml` apre la PR ogni lunedì, come Dependabot.
+  `tracked` ora vuol dire "letto da un bot": Dependabot o pin-bump. Non è il file
+  sentinella respinto sopra: il bot legge il pin vero. Resta solo mattpocock (P4).
+  Serve un interruttore del repo (`GITHUB-SETUP.md` §4c).
 
 ### P2 — Fatti hw/OS e primitive di piattaforma *(ADR-0018)*
 - **Anticipato per il solo LLM locale** (ADR-0023): `scripts/lib/llm-plan.sh`
@@ -299,6 +306,7 @@ cosa, il test deve diventare rosso), come già fatto per la catena `auto`.
 | 2026-10-10 | P1 (completamento) | componenti con pin letto da Dependabot (stessi 25) | 19/25 (76%) | 21/25 (84%) | statico | ✘ ≥ 90% non ancora: opencode e Node in P2b, mattpocock in P4, Ollama non tracciabile senza un file finto |
 | 2026-10-10 | P1 (completamento) | controlli nuovi con mutazione (pin senza consumatore, deriva headroom sull'host) | 0 | 2 controlli, 3 mutazioni rosse | 3 | ✔ |
 | 2026-10-10 | P1 dopo P2b | componenti con pin letto da Dependabot (26: +mise) | 21/25 (84%) | 22/26 (84%) | statico | ✘ ≥ 90% non raggiunto: Node, mise, Ollama in `versions.conf` (nessun ecosistema Dependabot), mattpocock in P4 |
+| 2026-10-15 | P1 con pin-bump (ADR-0026) | componenti con pin letto da un bot, Dependabot o pin-bump (stessi 26) | 22/26 (84%) | 25/26 (96%) | statico | ✔ ≥ 90%; resta mattpocock (P4). Il primo run reale del bot è da registrare |
 | 2026-10-10 | P2/P3 (solo LLM locale, ADR-0023) | decisioni hw corrette su profili (laptop PRD, 4+12, 4+8, 8, 24, L40S, CPU 16/8, GPU 2 GB, disco 3/6) | 2 tabelle divergenti; con ≥ 20 GB `auto` senza modello | 11/11 attese, 1 tabella | statico | ✔ |
 | 2026-10-10 | P3 (solo LLM locale) | cambiamenti al 2° run identico (TC-10) | non misurato (nessun registro) | 0 (registro vuoto, rimosso) | sistema finto | ✔ (da confermare sull'host) |
 | 2026-10-10 | P3 (solo LLM locale) | rollback riporta lo stato pre-run (TC-11) | non disponibile | binario, unit, override, firewall, modelli: tutti ripristinati; preesistenti intatti | sistema finto | ✔ (da confermare sull'host) |
