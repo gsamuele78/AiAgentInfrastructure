@@ -42,6 +42,6 @@ jobs:
       - name: Canarino dei segreti
         if: inputs.what == 'canary'
         run: bench/secret-canary/measure.sh --model "${{ inputs.model }}" --reps "${{ inputs.reps }}"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1 (v7.0.2 ha 3 giorni: cooldown ADR-0020)
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.1 (v7.0.2 ha 3 giorni: cooldown ADR-0020)
         if: always()
         with: { name: bench-results, path: bench/results/, if-no-files-found: ignore, retention-days: 90 }
