@@ -16,7 +16,7 @@
 # uv: stessa versione che usa il Dockerfile upstream di LiteLLM.
 FROM ghcr.io/astral-sh/uv:0.11.7@sha256:240fb85ab0f263ef12f492d8476aa3a2e4e1e333f7d67fbdd923d00a506a516a AS uvbin
 
-FROM ghcr.io/berriai/litellm-database:v1.106.0@sha256:80a12a210e6626e39daaa31fb6ce70f4c4d97ee10e21d4584a9e87f45bf3a2f1
+FROM ghcr.io/berriai/litellm-database:v1.106.4@sha256:db36453d25e76c9eb689d7d51b8e5fa48843243d7a86ed1284cf574ce0107b3f
 
 # Extra di headroom-ai. Default: vuoto = solo il core.
 # Il callback importa litellm, httpx e moduli interni di headroom: il core basta.
